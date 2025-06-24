@@ -1,0 +1,23 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+.vite/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env
+
+# OS + Editor junk
+.DS_Store
+*.swp
+.vscode/
+
+# Lockfiles (optional based on your package manager)
+package-lock.json
+pnpm-lock.yaml
