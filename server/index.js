@@ -56,6 +56,50 @@ app.get('/test-db', async (req, res) => {
     }
   });
 
+app.post('/parts', async (req, res) => {
+  const { name, part_number, location } = req.body;
+
+  if (!name || !part_number || !location) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  try {
+    const result = await pool.query(
+      'INSERT INTO parts (name, part_number, location) VALUES ($1, $2, $3) RETURNING *',
+      [name, part_number, location]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Error inserting part:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.put('/parts/:id', async (req, res) => {
+  const { name, part_number, location } = req.body;
+  const { id } = req.params;
+
+  if (!name || !part_number || !location) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  try {
+    const result = await pool.query(
+      'UPDATE parts SET name = $1, part_number = $2, location = $3 WHERE id = $4 RETURNING *',
+      [name, part_number, location, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Part not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Error updating part:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
