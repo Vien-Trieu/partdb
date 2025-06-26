@@ -45,19 +45,15 @@ client/
 # Install dependencies
 npm install
 
+#NOTE YOU MUST START BACKEND SERVER BEFORE YOU START DEV SERVER.
+
+# Run the backend server
+node index.js
 # Run the dev server
 npm run dev
 ```
 
 The app will start at [http://localhost:5173](http://localhost:5173)
-
----
-
-## 📦 Build
-
-```bash
-npm run build
-```
 
 ---
 
