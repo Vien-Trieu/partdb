@@ -1,28 +1,39 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import logoImage from '../assets/testlogo.png';
 
-function SplashScreen({ onFinish }) {
+const SplashScreen = ({ onFinish }) => {
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
-    const fadeTimer = setTimeout(() => setFadeOut(true), 1500); // trigger fade at 1.5s
-    const removeTimer = setTimeout(onFinish, 2000); // unmount at 2s
+    console.log('SplashScreen mounted');
+    const img = new Image();
+    img.src = logoImage;
+    img.onload = () => console.log('Image dimensions:', img.width, 'x', img.height);
+
+    const timer1 = setTimeout(() => setFadeOut(true), 1500);
+    const timer2 = setTimeout(() => onFinish(), 2000);
 
     return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(removeTimer);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
     };
-  }, [onFinish]);
+  }, []);
 
   return (
-    <div className={`fixed w-screen h-screen bg-white/90 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-500 ${fadeOut ? 'fade-out' : ''}`}>
-      <div className="w-full max-w-sm px-4 flex flex-col items-center text-center">
-        <img src="/logo.png" alt="Logo" className="fall-fade w-32 h-auto mx-auto" />
-        <p className="mt-4 text-base md:text-lg lg:text-xl font-medium text-gray-700">
-          Loading PartsDB...
-        </p>
+    <div 
+      className="fixed inset-0 flex items-center justify-center bg-white" 
+      style={{position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000}}
+    >
+      <div className="relative w-64 h-64">
+        <img 
+          src={logoImage} 
+          alt="Logo"
+          className={`w-full h-full object-contain ${fadeOut ? 'fade-out' : 'fall-fade'}`}
+          style={{visibility: 'visible'}}
+        />
       </div>
     </div>
   );
-}
+};
 
 export default SplashScreen;

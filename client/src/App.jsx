@@ -5,7 +5,7 @@ work correctly and smoothly.
 DISCLAIMER: THIS FILE IS CONSTANTLY CHANGING PLEASE BE ADVISED!!!
 */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import SplashScreen from './components/SplashScreen';
 import './index.css';
 import './animations.css';
@@ -152,6 +152,9 @@ function App() {
 
   return (
     <>
+      {showSplash && (
+        <SplashScreen onFinish={() => setShowSplash(false)} />
+      )}
       <div style={{ opacity: showSplash ? 0 : 1, transition: 'opacity 0.5s ease' }}>
         {/* Logs Page */}
         {viewMode === 'logs' && logsAuthorized && (
