@@ -1,3 +1,10 @@
+/*
+Author: Vien Trieu (Date: 6-27-2025)
+This file is the main file for the entire app. It holds everything that makes the app
+work correctly and smoothly.
+DISCLAIMER: THIS FILE IS CONSTANTLY CHANGING PLEASE BE ADVISED!!!
+*/
+
 import { useState, useEffect } from 'react';
 import SplashScreen from './components/SplashScreen';
 import './index.css';
@@ -26,7 +33,7 @@ function App() {
   const [confirmCallback, setConfirmCallback] = useState(() => {});
   const [notification, setNotification] = useState('');
 
-  // ─── Activity Log State ───────────────────────────────────────────────
+  // Activity Log State
   const [logs, setLogs] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('activityLogs')) || [];
@@ -38,7 +45,6 @@ function App() {
   const [logPin, setLogPin] = useState('');
   const [logsAuthorized, setLogsAuthorized] = useState(false);
 
-  // View mode: 'main' or 'logs'
   const [viewMode, setViewMode] = useState('main');
 
   const handleSearch = async () => {
@@ -110,7 +116,6 @@ function App() {
     }
   };
 
-  // helper: append a new log entry (and persist)
   const addLog = (action) => {
     const timestamp = new Date().toISOString().slice(0,16).replace('T',' ');
     const entry = { id: Date.now(), action, timestamp };
@@ -121,9 +126,15 @@ function App() {
     });
   };
 
-  // ─── Logs PIN Submission Handler ────────────────────────────────────────
   const submitLogPin = (e) => {
     e.preventDefault();
+    // only digits allowed
+    if (!/^\d+$/.test(logPin)) {
+      alert('PIN must be numeric');
+      setLogPin('');
+      return;
+    }
+
     if (logPin === '4321') {
       setLogsAuthorized(true);
       setLogPinPrompt(false);
@@ -147,10 +158,7 @@ function App() {
           <div className="min-h-screen bg-gray-100 flex items-start justify-center p-6">
             <div className="bg-white shadow-xl rounded-2xl p-8 max-w-2xl w-full">
               <button
-                onClick={() => {
-                  setViewMode('main');
-                  setLogsAuthorized(false);
-                }}
+                onClick={() => { setViewMode('main'); setLogsAuthorized(false); }}
                 className="mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 py-1 rounded"
               >
                 ← Back
@@ -210,7 +218,7 @@ function App() {
                       onClick={() => (window.location.href = '/')}
                       className="mb-6 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
                     >
-                      ← Back
+                      ← Home
                     </button>
                   )}
 
@@ -218,7 +226,7 @@ function App() {
                   {!isAuthorized && (
                     <>
                       <button
-                        onClick={() => setShowPinPrompt(!showPinPrompt)}
+                        onClick={() => setShowPinPrompt(prev => !prev)}
                         className="mb-6 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
                         title="Enter PIN to manage parts"
                       >
@@ -228,6 +236,12 @@ function App() {
                         <form
                           onSubmit={e => {
                             e.preventDefault();
+                            // only digits allowed
+                            if (!/^\d+$/.test(pin)) {
+                              alert('PIN must be numeric');
+                              setPin('');
+                              return;
+                            }
                             if (pin === '1234') {
                               setIsAuthorized(true);
                               setPin('');
@@ -236,7 +250,7 @@ function App() {
                               alert('Incorrect PIN');
                               setPin('');
                             }
-                          }}
+                          }}  
                           className="mb-4"
                         >
                           <input
@@ -254,7 +268,7 @@ function App() {
                       )}
 
                       <button
-                        onClick={() => setLogPinPrompt(true)}
+                        onClick={() => setLogPinPrompt(prev => !prev)}
                         disabled={logsAuthorized}
                         className="mb-6 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
                       >
@@ -282,7 +296,7 @@ function App() {
                   {isAuthorized && (
                     <>
                       <button
-                        onClick={() => setIsAuthorized(false)}
+                        onClick={() => { setIsAuthorized(false); setEditingId(null); }}
                         className="mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 py-1 rounded"
                       >
                         ← Back
@@ -330,11 +344,7 @@ function App() {
 
                   {/* Search Form */}
                   <form
-                    onSubmit={e => {
-                      e.preventDefault();
-                      setPage(1);
-                      handleSearch();
-                    }}
+                    onSubmit={e => { e.preventDefault(); setPage(1); handleSearch(); }}
                     className="flex flex-col md:flex-row gap-4 mb-6"
                   >
                     <input
@@ -362,16 +372,77 @@ function App() {
                     </div>
                   )}
 
-                  {/* Results List, Pagination, etc. */}
+                  {/* Results List, Inline Edit, Pagination, etc. */}
                   {results.length > 0 && (
                     <ul className="space-y-3 animate-fade-in">
                       {results.map(part => (
                         <li
                           key={part.id}
                           className="border border-gray-200 p-4 rounded-xl bg-blue-50 shadow-sm hover:shadow-md transition cursor-pointer"
-                          onClick={() => setSelectedPart(part)}
+                          onClick={editingId === part.id ? undefined : () => setSelectedPart(part)}
                         >
-                          {/* ...editing vs display logic unchanged... */}
+                          {editingId === part.id ? (
+                            <div className="space-y-2">
+                              <div className="grid grid-cols-3 gap-4">
+                                <input
+                                  name="name"
+                                  value={editValues.name}
+                                  onChange={handleEditChange}
+                                  className="input"
+                                />
+                                <input
+                                  name="part_number"
+                                  value={editValues.part_number}
+                                  onChange={handleEditChange}
+                                  className="input"
+                                />
+                                <input
+                                  name="location"
+                                  value={editValues.location}
+                                  onChange={handleEditChange}
+                                  className="input"
+                                />
+                              </div>
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleEditSave(part.id)}
+                                  className="btn-green"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingId(null)}
+                                  className="btn-gray"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-3 gap-4">
+                                <span className="text-gray-800 font-semibold">{part.name}</span>
+                                <span className="text-gray-700">{part.part_number}</span>
+                                <span className="text-gray-700">{part.location}</span>
+                              </div>
+                              {isAuthorized && (
+                                <div className="mt-2 flex space-x-2">
+                                  <button
+                                    onClick={e => { e.stopPropagation(); handleEdit(part); }}
+                                    className="px-3 py-1 bg-yellow-300 hover:bg-yellow-400 text-gray-800 rounded"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={e => { e.stopPropagation(); handleDelete(part.id); }}
+                                    className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                            </>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -396,10 +467,7 @@ function App() {
             <p className="mb-4">{confirmMessage}</p>
             <div className="flex justify-end space-x-4">
               <button
-                onClick={() => {
-                  confirmCallback();
-                  setConfirmOpen(false);
-                }}
+                onClick={() => { confirmCallback(); setConfirmOpen(false); }}
                 className="btn-red"
               >
                 Yes
