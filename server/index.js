@@ -1,8 +1,14 @@
-const express = require('express');
-const cors = require('cors');
-const app = express();
-require('dotenv').config();
+// server/index.js
+const path = require('path');
+require('dotenv').config({
+  path: path.join(__dirname, 'env.production')
+});
 
+// … your existing code to set up express, cors, pg-pool, routes, etc.
+const express = require('express');
+const cors    = require('cors');
+
+const app = express();
 const pool = require('./db');
 
 app.use(cors());
@@ -118,6 +124,10 @@ app.delete('/parts/:id', async (req, res) => {
     console.error('Error deleting part:', err);
     return res.status(500).json({ error: 'Server error' });
   }
+});
+
+app.get('/api/hello', (req, res) => {
+  res.send({ message: 'Backend is working!' });
 });
 
 app.listen(PORT, () => {

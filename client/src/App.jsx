@@ -215,15 +215,20 @@ function App() {
                 </>
               ) : (
                 <>
-                  {/* Back to root */}
-                  {results.length > 0 && (
-                    <button
-                      onClick={() => (window.location.href = '/')}
-                      className="mb-6 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
-                    >
-                      ← Home
-                    </button>
-                  )}
+                {/* Back to root */}
+                {results.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setResults([]);
+                      setQuery('');
+                      setSelectedPart(null);
+                      setPage(1);
+                    }}
+                    className="mb-6 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                  >
+                    ← Home
+                  </button>
+                )}
 
                   {/* Manage Parts & Logs Buttons */}
                   {!isAuthorized && (

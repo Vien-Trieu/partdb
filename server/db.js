@@ -1,11 +1,14 @@
 /*
 This sets up a reusable connection to your 
-PostgreSQL database using your .env config.
+PostgreSQL database using your env.production config.
 server/db.js
 */
 
+const path = require('path');
 const { Pool } = require('pg');
-require('dotenv').config();
+require('dotenv').config({
+  path: path.join(__dirname, 'env.production')
+});
 
 const pool = new Pool({
   host: process.env.PGHOST,
@@ -15,4 +18,4 @@ const pool = new Pool({
   port: process.env.PGPORT,
 });
 
-module.exports = pool;
+module.exports = pool; // ✅ pool must be defined before this

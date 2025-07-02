@@ -1,13 +1,16 @@
+// main.js
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
-const { spawn } = require('child_process');
 
 const isDev = !app.isPackaged;
+let win;
 
 function createWindow() {
+  if (win) return;
+
   console.log('🛠 Launching Electron app...');
 
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
@@ -18,38 +21,24 @@ function createWindow() {
   if (isDev) {
     console.log('⚙️ Development mode: loading Vite server');
     win.loadURL('http://localhost:5173');
+    win.webContents.openDevTools();
   } else {
-    console.log('🚀 Production mode: starting backend...');
+    console.log('🚀 Production mode: bootstrapping backend…');
 
-    const backend = spawn('node', ['server/index.js'], {
-      cwd: path.join(__dirname),
-      shell: true,
-      stdio: 'inherit',
+    // 1️⃣ Load your production env
+    require('dotenv').config({
+      path: path.join(__dirname, 'server', 'env.production'),
     });
 
-    backend.on('error', (err) => {
-      console.error('❌ Failed to start backend:', err);
-    });
+    // 2️⃣ Start your Express app _in-process_
+    require(path.join(__dirname, 'server', 'index.js'));
 
-    backend.on('exit', (code) => {
-      console.error(`❌ Backend exited with code ${code}`);
-    });
-
-    // Wait a moment for backend to start before loading frontend
-    setTimeout(() => {
-      console.log('📦 Loading built frontend...');
-      win.loadFile(path.join(__dirname, 'client/dist/index.html'));
-
-      win.webContents.on('did-fail-load', (e, code, desc) => {
-        console.error('❌ FAILED TO LOAD FRONTEND:', code, desc);
-      });
-
-      win.webContents.openDevTools();
-    }, 1000);
+    // 3️⃣ Finally load the built frontend
+    win.loadFile(path.join(__dirname, 'client/dist/index.html'));
   }
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(createWindow).catch(console.error);
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
