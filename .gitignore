@@ -4,6 +4,11 @@ node_modules/
 # Build output
 dist/
 .vite/
+build/               # Add this if you're using React or Vite builds
+
+# Electron/PKG output
+partdb-backend.exe   # Executable from pkg
+*.exe                # Optional: ignore all executables
 
 # Logs
 npm-debug.log*
@@ -21,3 +26,6 @@ yarn-error.log*
 # Lockfiles (optional based on your package manager)
 package-lock.json
 pnpm-lock.yaml
+
+# Optional: ignore icon if it's generated or temporary
+partDBicon.ico
