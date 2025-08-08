@@ -2,29 +2,57 @@
   "name": "partdb",
   "version": "1.0.0",
   "main": "main.js",
-  "scripts": {
-    "build": "npm run build-client && electron-builder",
-    "build-client": "cd client && npm install && npm run build"
-  },
+"scripts": {
+  "build-client":  "cd client && npm install && npm run build",
+  "build-backend": "pkg server/index.js --target node18-win-x64 --output build/partdb-backend.exe",
+  "build":         "npm run build-client && npm run build-backend && electron-builder"
+},
   "dependencies": {
-    "express": "^5.1.0",
-    "cors":    "^2.8.5",
-    "pg":      "^8.16.3",
-    "dotenv":  "^17.0.1"
+    "@supabase/supabase-js": "^2.52.1",
+    "axios":             "^1.11.0",
+    "cors":              "^2.8.5",
+    "dotenv":            "^17.0.1",
+    "express":           "^5.1.0",
+    "node-fetch":        "^2.6.7",
+    "pg":                "^8.16.3",
+    "supabase":          "^2.31.8"
   },
   "devDependencies": {
     "electron":         "^29.4.6",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "pkg":              "^5.10.9"
+  },
+  "pkg": {
+
+    "scripts":    ["server/index.js"],
+    "assets":     ["server/env.production"],
+    "targets":    ["node18-win-x64"],
+    "outputPath": "build"
   },
   "build": {
     "asar": false,
     "files": [
       "main.js",
       "preload.js",
-      "client/dist/**/*",
-      "server/**/*"
+      "client/dist/**/*"
     ],
-    "mac": { "target": ["dmg","zip"] },
-    "directories": { "output": "dist" }
+    "extraResources": [
+      {
+        "from": "build/partdb-backend.exe",
+        "to":   "backend/partdb-backend.exe"
+      }
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "partDB_icon.ico"
+    }
   }
 }

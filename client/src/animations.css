@@ -1,34 +1,48 @@
+/*
+Author: Vien Trieu (Date: 6-27-2025)
+Description: Defines custom keyframe animations and utility classes for fall-in and fade effects.
+*/
+
+/* === Fall Fade Animation ================================================ */
+/* Element falls in from above while fading into view */
 @keyframes fallFade {
-    0% {
-      transform: translateY(-100px);
-      opacity: 0;
-    }
-    100% {
-      transform: translateY(0);
-      opacity: 1;
-    }
+  0% {
+    transform: translateY(-100px);
+    opacity: 0;
   }
-  
-  .fall-fade {
-    animation: fallFade 1s ease-out forwards;
+  100% {
+    transform: translateY(0);
+    opacity: 1;
   }
-  
-  @keyframes fadeOut {
-    to {
-      opacity: 0;
-    }
-  }
-  
-  .fade-out {
-    animation: fadeOut 0.5s ease forwards;
-  }
+}
 
-  /* animations.css */
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
+/* Utility class to apply the fallFade animation */
+.fall-fade {
+  animation: fallFade 1s ease-out forwards;
+}
 
+/* === Fade Out Animation =============================================== */
+/* Element fades out to transparent */
+@keyframes fadeOut {
+  /* Animates opacity from current to 0 */
+  to {
+    opacity: 0;
+  }
+}
+
+/* Utility class to apply the fadeOut animation */
+.fade-out {
+  animation: fadeOut 0.5s ease forwards;
+}
+
+/* === Fade In Animation ================================================ */
+/* Element fades in from transparent */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Utility class to apply the fadeIn animation */
 .animate-fade-in {
   animation: fadeIn 0.5s ease-in;
 }

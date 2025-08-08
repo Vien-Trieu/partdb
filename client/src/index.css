@@ -1,22 +1,37 @@
+/*
+Author: Vien Trieu (Date: 6-27-2025)
+Description: Imports Tailwind CSS and defines loader spinner styles and keyframe animations.
+*/
+
+/* === Tailwind Import =================================================== */
 @import "tailwindcss";
 
+/* === Loader Spinner Styles ============================================= */
+/* Spinner border-top colored and continuous rotation animation */
 .loader {
-    border-top-color: #3498db;
-    animation: spin 1s linear infinite;
-  }
-  
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
+  border-top-color: #3498db;
+  animation: spin 1s linear infinite;
+}
 
-  .loader {
-    border-top-color: #3498db;
-    animation: spin 1s linear infinite;
+/* === Keyframes: spin =================================================== */
+/* Defines continuous rotation from 0 to 360 degrees */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
+}
+
+
+/* === Loader Spinner Variant ============================================ */
+/* Duplicate loader with explicit 0% and 100% steps for clarity */
+.loader {
+  border-top-color: #3498db;
+  animation: spin 1s linear infinite;
+}
+
+/* === Keyframes: spin explicit ========================================== */
+/* Defines rotation from 0deg to 360deg */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

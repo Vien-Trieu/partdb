@@ -1,19 +1,26 @@
-/* App.css or index.css */
+/*
+Author: Vien Trieu (Date: 6-27-2025)
+Description: Contains global styles, resets, utility classes, button styles, loading spinner, and animations for the application.
+*/
 
-/* General Reset */
+/* === General Reset ======================================================= */
+/* Resets margin, padding, and box-sizing for all elements */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* === Base Styles ========================================================= */
+/* Sets default font, background color, and text color for the body */
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: #f3f4f6;
   color: #1f2937;
 }
 
-/* Utility Classes */
+/* === Utility Classes ===================================================== */
+/* Input styling: padding, border, radius, focus transition */
 .input {
   padding: 0.5rem 1rem;
   border: 1px solid #d1d5db;
@@ -23,10 +30,12 @@ body {
 }
 
 .input:focus {
+  /* Highlight border when input is focused */
   border-color: #3b82f6;
 }
 
-/* Button Styles */
+/* === Button Styles ======================================================= */
+/* Style for primary blue button */
 .btn-blue {
   background-color: #3b82f6;
   color: white;
@@ -36,9 +45,11 @@ body {
 }
 
 .btn-blue:hover {
+  /* Darken blue on hover */
   background-color: #2563eb;
 }
 
+/* Style for success green button */
 .btn-green {
   background-color: #10b981;
   color: white;
@@ -48,9 +59,11 @@ body {
 }
 
 .btn-green:hover {
+  /* Darken green on hover */
   background-color: #059669;
 }
 
+/* Style for warning yellow button */
 .btn-yellow {
   background-color: #facc15;
   color: #1f2937;
@@ -58,6 +71,7 @@ body {
   border-radius: 0.5rem;
 }
 
+/* Style for danger red button */
 .btn-red {
   background-color: #ef4444;
   color: white;
@@ -65,6 +79,7 @@ body {
   border-radius: 0.5rem;
 }
 
+/* Style for secondary gray button */
 .btn-gray {
   background-color: #9ca3af;
   color: white;
@@ -72,6 +87,7 @@ body {
   border-radius: 0.5rem;
 }
 
+/* Style for navigation buttons */
 .btn-nav {
   background-color: #6b7280;
   color: white;
@@ -80,23 +96,27 @@ body {
 }
 
 .btn-nav:disabled {
+  /* Disabled nav button state */
   background-color: #d1d5db;
   cursor: not-allowed;
 }
 
-/* Loading Spinner */
+/* === Loading Spinner ====================================================== */
+/* Spinner animation for loading states */
 .loader {
   border-top-color: #3b82f6;
   animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
+  /* Rotating animation definition */
   to {
     transform: rotate(360deg);
   }
 }
 
-/* Animations */
+/* === Animations ========================================================== */
+/* Fade-in animation for elements */
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -109,5 +129,6 @@ body {
 }
 
 .animate-fade-in {
+  /* Apply fade-in effect */
   animation: fade-in 0.4s ease-in-out;
 }

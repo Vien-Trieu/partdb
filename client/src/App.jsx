@@ -11,44 +11,59 @@ import './index.css';
 import './animations.css';
 
 function App() {
-  const [showSplash, setShowSplash] = useState(true);
-  const [query, setQuery] = useState('');
-  const [type, setType] = useState('name');
-  const [results, setResults] = useState([]);
-  const [selectedPart, setSelectedPart] = useState(null);
-  const [editingId, setEditingId] = useState(null);
-  const [editValues, setEditValues] = useState({ name: '', part_number: '', location: '' });
+  /* === UI / splash control === */
+  const [showSplash, setShowSplash] = useState(true); // whether to show the initial splash screen
 
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [showPinPrompt, setShowPinPrompt] = useState(false);
-  const [pin, setPin] = useState('');
+  /* === Search state === */
+  const [query, setQuery] = useState(''); // current search input
+  const [type, setType] = useState('name'); // whether searching by name or number
+  const [results, setResults] = useState([]); // list of parts returned from backend
+  const [selectedPart, setSelectedPart] = useState(null); // currently viewed part detail
 
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const limit = 5;
+  /* === Editing state === */
+  const [editingId, setEditingId] = useState(null); // id of the part in edit mode
+  const [editValues, setEditValues] = useState({ name: '', part_number: '', location: '' }); // temp values for edit form
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmMessage, setConfirmMessage] = useState('');
-  const [confirmCallback, setConfirmCallback] = useState(() => {});
-  const [notification, setNotification] = useState('');
+  /* === Authorization for managing parts === */
+  const [isAuthorized, setIsAuthorized] = useState(false); // whether user has entered correct PIN to manage parts
+  const [showPinPrompt, setShowPinPrompt] = useState(false); // whether to show the PIN entry UI
+  const [pin, setPin] = useState(''); // entered PIN for part management
 
-  // Activity Log State
+  /* === Pagination === */
+  const [page, setPage] = useState(1); // current page number
+  const [totalPages, setTotalPages] = useState(1); // total pages available from server
+  const limit = 5; // items per page
+
+  /* === Feedback / UX state === */
+  const [isLoading, setIsLoading] = useState(false); // spinner while fetching
+  const [confirmOpen, setConfirmOpen] = useState(false); // whether confirmation modal is open
+  const [confirmMessage, setConfirmMessage] = useState(''); // message in confirm modal
+  const [confirmCallback, setConfirmCallback] = useState(() => {}); // action to run if confirmed
+  const [notification, setNotification] = useState(''); // transient success/failure messages
+
+  /* === Activity log === */
   const [logs, setLogs] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('activityLogs')) || [];
     } catch {
-      return [];
+      return []; // fallback if localStorage is corrupted
     }
   });
-  const [logPinPrompt, setLogPinPrompt] = useState(false);
-  const [logPin, setLogPin] = useState('');
-  const [logsAuthorized, setLogsAuthorized] = useState(false);
+  const [logPinPrompt, setLogPinPrompt] = useState(false); // show PIN prompt for viewing logs
+  const [logPin, setLogPin] = useState(''); // entered PIN for logs
+  const [logsAuthorized, setLogsAuthorized] = useState(false); // whether logs view is unlocked
 
-  const [viewMode, setViewMode] = useState('main');
+  /* === View mode (main or logs) === */
+  const [viewMode, setViewMode] = useState('main'); // toggles between main lookup and activity logs view
 
+  /**
+   * perform the search request to backend based on current query/type/page.
+   * does nothing if the query is empty/whitespace.
+   */
   const handleSearch = async () => {
-    if (!query) return;
+    if (!query.trim()) {
+      return; // avoid unnecessary requests on empty search
+    }
     setIsLoading(true);
     try {
       const response = await fetch(
@@ -65,35 +80,78 @@ function App() {
     }
   };
 
+  /**
+   * Whenever query or type changes, reset to page 1 and fetch.
+   * If already on page 1, trigger the search directly; otherwise changing page will cascade into the next effect.
+   */
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([]); // clear results when query is emptied
+      return;
+    }
+    if (page !== 1) {
+      setPage(1); // this triggers the page effect after state update
+    } else {
+      handleSearch(); // already on page 1, so search immediately
+    }
+  }, [query, type]);
+
+  /**
+   * Trigger search when page changes (for pagination).
+   */
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+    handleSearch();
+  }, [page]);
+
+  /**
+   * Deletes a part by ID, then refreshes results appropriately.
+   * If there is an active query, re-runs the search to keep pagination consistent.
+   */
   const performDelete = async (id) => {
     try {
       await fetch(`http://localhost:3001/parts/${id}`, { method: 'DELETE' });
-      if (query) await handleSearch();
-      else setResults(prev => prev.filter(p => p.id !== id));
+      if (query) await handleSearch(); // refresh current search results
+      else setResults(prev => prev.filter(p => p.id !== id)); // otherwise remove locally
       setNotification('Part deleted successfully!');
       addLog(`Deleted part #${id}`);
-      setTimeout(() => setNotification(''), 3000);
+      setTimeout(() => setNotification(''), 3000); // auto-clear notification
     } catch (error) {
       console.error('Error deleting part:', error);
       alert('Failed to delete part.');
     }
   };
 
+  /**
+   * Opens confirmation prompt before deleting.
+   */
   const handleDelete = (id) => {
     setConfirmMessage('Are you sure you want to delete this part?');
     setConfirmCallback(() => () => performDelete(id));
     setConfirmOpen(true);
   };
 
+  /**
+   * Begin editing a part by populating editValues and selecting editingId.
+   */
   const handleEdit = (part) => {
     setEditingId(part.id);
     setEditValues({ name: part.name, part_number: part.part_number, location: part.location });
   };
 
+  /**
+   * Handle input changes in the edit form.
+   */
   const handleEditChange = (e) => {
     setEditValues({ ...editValues, [e.target.name]: e.target.value });
   };
 
+  /**
+   * Save edited part back to backend and update local state.
+   */
   const handleEditSave = async (id) => {
     const { name, part_number, location } = editValues;
     if (!name.trim() || !part_number.trim() || !location.trim()) {
@@ -109,13 +167,16 @@ function App() {
       const updated = await response.json();
       setResults(prev => prev.map(p => (p.id === id ? updated : p)));
       addLog(`Edited part #${id}`);
-      setEditingId(null);
+      setEditingId(null); // exit edit mode
     } catch (error) {
       console.error('Error updating part:', error);
       alert('Failed to update part.');
     }
   };
 
+  /**
+   * Append an entry to the activity log and persist to localStorage.
+   */
   const addLog = (action) => {
     const timestamp = new Date().toISOString().slice(0,16).replace('T',' ');
     const entry = { id: Date.now(), action, timestamp };
@@ -126,9 +187,11 @@ function App() {
     });
   };
 
+  /**
+   * Submit the PIN for viewing logs. Only "4321" is accepted here.
+   */
   const submitLogPin = (e) => {
     e.preventDefault();
-    // only digits allowed
     if (!/^\d+$/.test(logPin)) {
       alert('PIN must be numeric');
       setLogPin('');
@@ -146,17 +209,15 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    if (query) handleSearch();
-  }, [page]);
-
   return (
     <>
+      {/* Splash screen overlay */}
       {showSplash && (
         <SplashScreen onFinish={() => setShowSplash(false)} />
       )}
+
       <div style={{ opacity: showSplash ? 0 : 1, transition: 'opacity 0.5s ease' }}>
-        {/* Logs Page */}
+        {/* === Activity Logs View === */}
         {viewMode === 'logs' && logsAuthorized && (
           <div className="min-h-screen bg-gray-100 flex items-start justify-center p-6">
             <div className="bg-white shadow-xl rounded-2xl p-8 max-w-2xl w-full">
@@ -182,7 +243,7 @@ function App() {
           </div>
         )}
 
-        {/* Main Lookup Page */}
+        {/* === Main Lookup Page === */}
         {viewMode === 'main' && (
           <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
             <div className="bg-white shadow-xl rounded-2xl p-8 max-w-2xl w-full">
@@ -190,13 +251,14 @@ function App() {
                 🔎 Part Lookup
               </h1>
 
+              {/* Notification banner (e.g., after delete) */}
               {notification && (
                 <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
                   {notification}
                 </div>
               )}
 
-              {/* Detail View */}
+              {/* === Detail View === */}
               {selectedPart ? (
                 <>
                   <button
@@ -215,22 +277,22 @@ function App() {
                 </>
               ) : (
                 <>
-                {/* Back to root */}
-                {results.length > 0 && (
-                  <button
-                    onClick={() => {
-                      setResults([]);
-                      setQuery('');
-                      setSelectedPart(null);
-                      setPage(1);
-                    }}
-                    className="mb-6 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
-                  >
-                    ← Home
-                  </button>
-                )}
+                  {/* Reset to root / clear search */}
+                  {results.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setResults([]);
+                        setQuery('');
+                        setSelectedPart(null);
+                        setPage(1);
+                      }}
+                      className="mb-6 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                    >
+                      ← Home
+                    </button>
+                  )}
 
-                  {/* Manage Parts & Logs Buttons */}
+                  {/* === Authorization / PIN controls === */}
                   {!isAuthorized && (
                     <>
                       <button
@@ -244,7 +306,7 @@ function App() {
                         <form
                           onSubmit={e => {
                             e.preventDefault();
-                            // only digits allowed
+                            // require numeric PIN
                             if (!/^\d+$/.test(pin)) {
                               alert('PIN must be numeric');
                               setPin('');
@@ -258,7 +320,7 @@ function App() {
                               alert('Incorrect PIN');
                               setPin('');
                             }
-                          }}  
+                          }}
                           className="mb-4"
                         >
                           <input
@@ -275,6 +337,7 @@ function App() {
                         </form>
                       )}
 
+                      {/* Activity logs access */}
                       <button
                         onClick={() => setLogPinPrompt(prev => !prev)}
                         disabled={logsAuthorized}
@@ -300,7 +363,7 @@ function App() {
                     </>
                   )}
 
-                  {/* Add New Part */}
+                  {/* === Add New Part (requires authorization) === */}
                   {isAuthorized && (
                     <>
                       <button
@@ -326,7 +389,7 @@ function App() {
                               body: JSON.stringify({ name, part_number, location }),
                             });
                             const newPart = await response.json();
-                            setResults(prev => [newPart, ...prev]);
+                            setResults(prev => [newPart, ...prev]); // prepend new part
                             e.target.reset();
                           } catch (error) {
                             console.error('Error adding part:', error);
@@ -350,9 +413,9 @@ function App() {
                     </>
                   )}
 
-                  {/* Search Form */}
+                  {/* === Search Form === */}
                   <form
-                    onSubmit={e => { e.preventDefault(); setPage(1); handleSearch(); }}
+                    onSubmit={e => { e.preventDefault(); setPage(1); }} // resets to first page; effect triggers search
                     className="flex flex-col md:flex-row gap-4 mb-6"
                   >
                     <input
@@ -374,86 +437,111 @@ function App() {
                     </button>
                   </form>
 
+                  {/* Loading indicator during fetch */}
                   {isLoading && (
                     <div className="flex justify-center items-center my-4">
                       <div className="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-10 w-10"></div>
                     </div>
                   )}
 
-                  {/* Results List, Inline Edit, Pagination, etc. */}
+                  {/* === Results List === */}
                   {results.length > 0 && (
-                    <ul className="space-y-3 animate-fade-in">
-                      {results.map(part => (
-                        <li
-                          key={part.id}
-                          className="border border-gray-200 p-4 rounded-xl bg-blue-50 shadow-sm hover:shadow-md transition cursor-pointer"
-                          onClick={editingId === part.id ? undefined : () => setSelectedPart(part)}
-                        >
-                          {editingId === part.id ? (
-                            <div className="space-y-2">
-                              <div className="grid grid-cols-3 gap-4">
-                                <input
-                                  name="name"
-                                  value={editValues.name}
-                                  onChange={handleEditChange}
-                                  className="input"
-                                />
-                                <input
-                                  name="part_number"
-                                  value={editValues.part_number}
-                                  onChange={handleEditChange}
-                                  className="input"
-                                />
-                                <input
-                                  name="location"
-                                  value={editValues.location}
-                                  onChange={handleEditChange}
-                                  className="input"
-                                />
-                              </div>
-                              <div className="flex space-x-2">
-                                <button
-                                  onClick={() => handleEditSave(part.id)}
-                                  className="btn-green"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  onClick={() => setEditingId(null)}
-                                  className="btn-gray"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="grid grid-cols-3 gap-4">
-                                <span className="text-gray-800 font-semibold">{part.name}</span>
-                                <span className="text-gray-700">{part.part_number}</span>
-                                <span className="text-gray-700">{part.location}</span>
-                              </div>
-                              {isAuthorized && (
-                                <div className="mt-2 flex space-x-2">
+                    <>
+                      <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                        🔍 Search Results
+                      </h2>
+                      <ul className="space-y-3 animate-fade-in">
+                        {results.map(part => (
+                          <li
+                            key={part.id}
+                            className="border border-gray-200 p-4 rounded-xl bg-blue-50 shadow-sm hover:shadow-md transition cursor-pointer"
+                            onClick={editingId === part.id ? undefined : () => setSelectedPart(part)}
+                          >
+                            {editingId === part.id ? (
+                              <div className="space-y-2">
+                                <div className="grid grid-cols-3 gap-4">
+                                  <input
+                                    name="name"
+                                    value={editValues.name}
+                                    onChange={handleEditChange}
+                                    className="input"
+                                  />
+                                  <input
+                                    name="part_number"
+                                    value={editValues.part_number}
+                                    onChange={handleEditChange}
+                                    className="input"
+                                  />
+                                  <input
+                                    name="location"
+                                    value={editValues.location}
+                                    onChange={handleEditChange}
+                                    className="input"
+                                  />
+                                </div>
+                                <div className="flex space-x-2">
                                   <button
-                                    onClick={e => { e.stopPropagation(); handleEdit(part); }}
-                                    className="px-3 py-1 bg-yellow-300 hover:bg-yellow-400 text-gray-800 rounded"
+                                    onClick={() => handleEditSave(part.id)}
+                                    className="btn-green"
                                   >
-                                    Edit
+                                    Save
                                   </button>
                                   <button
-                                    onClick={e => { e.stopPropagation(); handleDelete(part.id); }}
-                                    className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded"
+                                    onClick={() => setEditingId(null)}
+                                    className="btn-gray"
                                   >
-                                    Delete
+                                    Cancel
                                   </button>
                                 </div>
-                              )}
-                            </>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="grid grid-cols-3 gap-4">
+                                  <span className="text-gray-800 font-semibold">{part.name}</span>
+                                  <span className="text-gray-700">{part.part_number}</span>
+                                  <span className="text-gray-700">{part.location}</span>
+                                </div>
+                                {isAuthorized && (
+                                  <div className="mt-2 flex space-x-2">
+                                    <button
+                                      onClick={e => { e.stopPropagation(); handleEdit(part); }}
+                                      className="px-3 py-1 bg-yellow-300 hover:bg-yellow-400 text-gray-800 rounded"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); handleDelete(part.id); }}
+                                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded"
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+
+                      {/* Pagination Controls */}
+                      <div className="flex justify-between items-center mt-4">
+                        <button
+                          disabled={page === 1}
+                          onClick={() => setPage(prev => Math.max(1, prev - 1))}
+                          className={`px-4 py-2 rounded ${page === 1 ? 'bg-gray-300' : 'bg-blue-500 text-white'}`}
+                        >
+                          Previous
+                        </button>
+                        <span className="text-gray-700">Page {page} of {totalPages}</span>
+                        <button
+                          disabled={page >= totalPages}
+                          onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
+                          className={`px-4 py-2 rounded ${page >= totalPages ? 'bg-gray-300' : 'bg-blue-500 text-white'}`}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </>
                   )}
                 </>
               )}
@@ -462,13 +550,14 @@ function App() {
         )}
       </div>
 
+      {/* Splash fallback for overlapping layer */}
       {showSplash && (
         <div className="absolute inset-0 z-50">
           <SplashScreen onFinish={() => setShowSplash(false)} />
         </div>
       )}
 
-      {/* Confirmation Modal */}
+      {/* Confirmation Modal (shared for deletions, etc.) */}
       {confirmOpen && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white p-6 rounded-lg shadow-lg">
