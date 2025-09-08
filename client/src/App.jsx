@@ -5,153 +5,227 @@ work correctly and smoothly.
 DISCLAIMER: THIS FILE IS CONSTANTLY CHANGING PLEASE BE ADVISED!!!
 */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import SplashScreen from './components/SplashScreen';
+import ABB from './assets/ABB.png';
 import './index.css';
 import './animations.css';
+import './App.css';
+
+const API_BASE =
+  (import.meta && import.meta.env && import.meta.env.VITE_API_BASE) ||
+  'http://localhost:3001';
+
+/** Robust fetch with timeout, retry, and no-store cache (handles 204/empty bodies) */
+async function fetchJSON(path, options = {}, { retries = 1, timeoutMs = 8000 } = {}) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      cache: 'no-store',
+      ...options,
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    // e.g., DELETE endpoints often return 204
+    if (res.status === 204) return null;
+
+    const text = await res.text();
+    if (!text) return null;
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      // Not JSON—return raw text so caller can decide
+      return text;
+    }
+  } catch (err) {
+    if (retries > 0) {
+      await new Promise(r => setTimeout(r, 400));
+      return fetchJSON(path, options, { retries: retries - 1, timeoutMs });
+    }
+    throw err;
+  } finally {
+    clearTimeout(id);
+  }
+}
 
 function App() {
   /* === UI / splash control === */
-  const [showSplash, setShowSplash] = useState(true); // whether to show the initial splash screen
+  const [showSplash, setShowSplash] = useState(true);
 
   /* === Search state === */
-  const [query, setQuery] = useState(''); // current search input
-  const [type, setType] = useState('name'); // whether searching by name or number
-  const [results, setResults] = useState([]); // list of parts returned from backend
-  const [selectedPart, setSelectedPart] = useState(null); // currently viewed part detail
+  const [query, setQuery] = useState('');
+  const [type, setType] = useState('name'); // name | number
+  const [results, setResults] = useState([]);
+  const [selectedPart, setSelectedPart] = useState(null);
 
   /* === Editing state === */
-  const [editingId, setEditingId] = useState(null); // id of the part in edit mode
-  const [editValues, setEditValues] = useState({ name: '', part_number: '', location: '' }); // temp values for edit form
+  const [editingId, setEditingId] = useState(null);
+  const [editValues, setEditValues] = useState({ name: '', part_number: '', location: '' });
 
   /* === Authorization for managing parts === */
-  const [isAuthorized, setIsAuthorized] = useState(false); // whether user has entered correct PIN to manage parts
-  const [showPinPrompt, setShowPinPrompt] = useState(false); // whether to show the PIN entry UI
-  const [pin, setPin] = useState(''); // entered PIN for part management
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [showPinPrompt, setShowPinPrompt] = useState(false);
+  const [pin, setPin] = useState('');
 
   /* === Pagination === */
-  const [page, setPage] = useState(1); // current page number
-  const [totalPages, setTotalPages] = useState(1); // total pages available from server
-  const limit = 5; // items per page
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const limit = 5;
 
   /* === Feedback / UX state === */
-  const [isLoading, setIsLoading] = useState(false); // spinner while fetching
-  const [confirmOpen, setConfirmOpen] = useState(false); // whether confirmation modal is open
-  const [confirmMessage, setConfirmMessage] = useState(''); // message in confirm modal
-  const [confirmCallback, setConfirmCallback] = useState(() => {}); // action to run if confirmed
-  const [notification, setNotification] = useState(''); // transient success/failure messages
+  const [isLoading, setIsLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmCallback, setConfirmCallback] = useState(() => {});
+  const [notification, setNotification] = useState('');
+  const [lastError, setLastError] = useState('');
 
   /* === Activity log === */
   const [logs, setLogs] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem('activityLogs')) || [];
     } catch {
-      return []; // fallback if localStorage is corrupted
+      return [];
     }
   });
-  const [logPinPrompt, setLogPinPrompt] = useState(false); // show PIN prompt for viewing logs
-  const [logPin, setLogPin] = useState(''); // entered PIN for logs
-  const [logsAuthorized, setLogsAuthorized] = useState(false); // whether logs view is unlocked
+  const [logPinPrompt, setLogPinPrompt] = useState(false);
+  const [logPin, setLogPin] = useState('');
+  const [logsAuthorized, setLogsAuthorized] = useState(false);
 
   /* === View mode (main or logs) === */
-  const [viewMode, setViewMode] = useState('main'); // toggles between main lookup and activity logs view
+  const [viewMode, setViewMode] = useState('main');
 
-  /**
-   * perform the search request to backend based on current query/type/page.
-   * does nothing if the query is empty/whitespace.
-   */
+  // Remember last successful search params for auto-refresh on visibility/focus
+  const lastSearchRef = useRef({ query: '', type: 'name', page: 1 });
+
+  /** Execute a search based on current query/type/page */
   const handleSearch = async () => {
     if (!query.trim()) {
-      return; // avoid unnecessary requests on empty search
+      setResults([]);
+      setLastError('');
+      return;
     }
     setIsLoading(true);
+    setLastError('');
     try {
-      const response = await fetch(
-        `http://localhost:3001/parts?${type}=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+      const data = await fetchJSON(
+        `/parts?${type}=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
       );
-      const data = await response.json();
-      setResults(data.results);
-      setTotalPages(data.totalPages);
+      if (data) {
+        setResults(Array.isArray(data.results) ? data.results : []);
+        setTotalPages(Number.isFinite(data.totalPages) ? data.totalPages : 1);
+      } else {
+        setResults([]);
+        setTotalPages(1);
+      }
       addLog(`Searched parts by "${type}" with query "${query}" (page ${page})`);
+      // Save last successful search to both ref and localStorage (for persistence)
+      lastSearchRef.current = { query, type, page };
+      try {
+        localStorage.setItem('lastSearch', JSON.stringify(lastSearchRef.current));
+      } catch {}
     } catch (error) {
       console.error('Search failed:', error);
+      setLastError('Search failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  /**
-   * Whenever query or type changes, reset to page 1 and fetch.
-   * If already on page 1, trigger the search directly; otherwise changing page will cascade into the next effect.
-   */
+  /** Re-run search when query/type changes (reset to page 1 or search if already 1) */
   useEffect(() => {
     if (!query.trim()) {
-      setResults([]); // clear results when query is emptied
+      setResults([]);
       return;
     }
-    if (page !== 1) {
-      setPage(1); // this triggers the page effect after state update
-    } else {
-      handleSearch(); // already on page 1, so search immediately
-    }
+    if (page !== 1) setPage(1);
+    else handleSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, type]);
 
-  /**
-   * Trigger search when page changes (for pagination).
-   */
+  /** Re-run search when page changes */
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
       return;
     }
     handleSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
-  /**
-   * Deletes a part by ID, then refreshes results appropriately.
-   * If there is an active query, re-runs the search to keep pagination consistent.
-   */
+  /** Auto-refresh last search after long idle / tab focus */
+  useEffect(() => {
+    const onVisible = async () => {
+      if (document.visibilityState === 'visible') {
+        const { query: q } = lastSearchRef.current;
+        if (q && q.trim()) {
+          try {
+            await handleSearch();
+          } catch {}
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, []);
+
+  /** Restore last search from localStorage on mount (optional persistence) */
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('lastSearch'));
+      if (saved && saved.query && saved.query.trim()) {
+        setQuery(saved.query);
+        setType(saved.type || 'name');
+        // We intentionally don't set page here because the [query,type] effect
+        // resets page to 1 and triggers a fresh search automatically.
+        lastSearchRef.current = { query: saved.query, type: saved.type || 'name', page: 1 };
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Delete part and refresh results */
   const performDelete = async (id) => {
     try {
-      await fetch(`http://localhost:3001/parts/${id}`, { method: 'DELETE' });
-      if (query) await handleSearch(); // refresh current search results
-      else setResults(prev => prev.filter(p => p.id !== id)); // otherwise remove locally
+      await fetchJSON(`/parts/${id}`, { method: 'DELETE' }); // 204-friendly
+      if (query) await handleSearch();
+      else setResults(prev => prev.filter(p => p.id !== id));
       setNotification('Part deleted successfully!');
       addLog(`Deleted part #${id}`);
-      setTimeout(() => setNotification(''), 3000); // auto-clear notification
+      setTimeout(() => setNotification(''), 3000);
     } catch (error) {
       console.error('Error deleting part:', error);
       alert('Failed to delete part.');
     }
   };
 
-  /**
-   * Opens confirmation prompt before deleting.
-   */
+  /** Open confirmation dialog */
   const handleDelete = (id) => {
     setConfirmMessage('Are you sure you want to delete this part?');
     setConfirmCallback(() => () => performDelete(id));
     setConfirmOpen(true);
   };
 
-  /**
-   * Begin editing a part by populating editValues and selecting editingId.
-   */
+  /** Start editing */
   const handleEdit = (part) => {
     setEditingId(part.id);
     setEditValues({ name: part.name, part_number: part.part_number, location: part.location });
   };
 
-  /**
-   * Handle input changes in the edit form.
-   */
+  /** Edit inputs change */
   const handleEditChange = (e) => {
     setEditValues({ ...editValues, [e.target.name]: e.target.value });
   };
 
-  /**
-   * Save edited part back to backend and update local state.
-   */
+  /** Save edited part */
   const handleEditSave = async (id) => {
     const { name, part_number, location } = editValues;
     if (!name.trim() || !part_number.trim() || !location.trim()) {
@@ -159,37 +233,35 @@ function App() {
       return;
     }
     try {
-      const response = await fetch(`http://localhost:3001/parts/${id}`, {
+      const updated = await fetchJSON(`/parts/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editValues),
       });
-      const updated = await response.json();
-      setResults(prev => prev.map(p => (p.id === id ? updated : p)));
+      if (updated) {
+        setResults(prev => prev.map(p => (p.id === id ? updated : p)));
+      }
       addLog(`Edited part #${id}`);
-      setEditingId(null); // exit edit mode
+      setEditingId(null);
     } catch (error) {
       console.error('Error updating part:', error);
       alert('Failed to update part.');
     }
   };
 
-  /**
-   * Append an entry to the activity log and persist to localStorage.
-   */
+  /** Append an entry to the activity log and persist */
   const addLog = (action) => {
     const timestamp = new Date().toISOString().slice(0,16).replace('T',' ');
     const entry = { id: Date.now(), action, timestamp };
     setLogs(prev => {
       const updated = [...prev, entry];
-      localStorage.setItem('activityLogs', JSON.stringify(updated));
+      try {
+        localStorage.setItem('activityLogs', JSON.stringify(updated));
+      } catch {}
       return updated;
     });
   };
 
-  /**
-   * Submit the PIN for viewing logs. Only "4321" is accepted here.
-   */
+  /** Submit logs PIN */
   const submitLogPin = (e) => {
     e.preventDefault();
     if (!/^\d+$/.test(logPin)) {
@@ -197,7 +269,6 @@ function App() {
       setLogPin('');
       return;
     }
-
     if (logPin === '4321') {
       setLogsAuthorized(true);
       setLogPinPrompt(false);
@@ -217,13 +288,18 @@ function App() {
       )}
 
       <div style={{ opacity: showSplash ? 0 : 1, transition: 'opacity 0.5s ease' }}>
+        {/* Logo */}
+        <div className='logo-container'>
+          <img src={ABB} alt="ABB Logo" className='logo' />
+        </div>
+
         {/* === Activity Logs View === */}
         {viewMode === 'logs' && logsAuthorized && (
           <div className="min-h-screen bg-gray-100 flex items-start justify-center p-6">
             <div className="bg-white shadow-xl rounded-2xl p-8 max-w-2xl w-full">
               <button
                 onClick={() => { setViewMode('main'); setLogsAuthorized(false); }}
-                className="mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 py-1 rounded"
+                className="mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded text-lg"
               >
                 ← Back
               </button>
@@ -251,10 +327,20 @@ function App() {
                 🔎 Part Lookup
               </h1>
 
-              {/* Notification banner (e.g., after delete) */}
+              {/* Notification banner */}
               {notification && (
                 <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded">
                   {notification}
+                </div>
+              )}
+
+              {/* Error banner with retry */}
+              {lastError && (
+                <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded flex justify-between items-center">
+                  <span>{lastError}</span>
+                  <button onClick={handleSearch} className="ml-4 btn-blue text-lg px-4 py-2">
+                    Retry
+                  </button>
                 </div>
               )}
 
@@ -263,7 +349,7 @@ function App() {
                 <>
                   <button
                     onClick={() => setSelectedPart(null)}
-                    className="mb-6 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                    className="mb-6 bg-gray-500 hover:bg-gray-600 text-white px-5 py-3 rounded text-lg"
                   >
                     ← Back to Results
                   </button>
@@ -286,7 +372,7 @@ function App() {
                         setSelectedPart(null);
                         setPage(1);
                       }}
-                      className="mb-6 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+                      className="mb-6 bg-gray-500 hover:bg-gray-600 text-white px-5 py-3 rounded text-lg"
                     >
                       ← Home
                     </button>
@@ -297,7 +383,7 @@ function App() {
                     <>
                       <button
                         onClick={() => setShowPinPrompt(prev => !prev)}
-                        className="mb-6 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+                        className="mb-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded text-lg"
                         title="Enter PIN to manage parts"
                       >
                         Manage Parts
@@ -306,7 +392,6 @@ function App() {
                         <form
                           onSubmit={e => {
                             e.preventDefault();
-                            // require numeric PIN
                             if (!/^\d+$/.test(pin)) {
                               alert('PIN must be numeric');
                               setPin('');
@@ -321,17 +406,17 @@ function App() {
                               setPin('');
                             }
                           }}
-                          className="mb-4"
+                          className="mb-6"
                         >
                           <input
                             type="password"
                             value={pin}
                             onChange={e => setPin(e.target.value)}
-                            className="input mb-2"
+                            className="input mb-2 text-lg py-3"
                             placeholder="Enter 4-digit PIN"
                             maxLength={4}
                           />
-                          <button type="submit" className="btn-blue">
+                          <button type="submit" className="btn-blue text-lg px-6 py-3">
                             Submit
                           </button>
                         </form>
@@ -341,21 +426,21 @@ function App() {
                       <button
                         onClick={() => setLogPinPrompt(prev => !prev)}
                         disabled={logsAuthorized}
-                        className="mb-6 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+                        className="mb-6 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded text-lg disabled:opacity-50"
                       >
                         View Activity Logs
                       </button>
                       {logPinPrompt && !logsAuthorized && (
-                        <form onSubmit={submitLogPin} className="mb-4">
+                        <form onSubmit={submitLogPin} className="mb-6">
                           <input
                             type="password"
                             value={logPin}
                             onChange={e => setLogPin(e.target.value)}
-                            className="input mb-2"
+                            className="input mb-2 text-lg py-3"
                             placeholder="Enter 4-digit PIN"
                             maxLength={4}
                           />
-                          <button type="submit" className="btn-blue">
+                          <button type="submit" className="btn-blue text-lg px-6 py-3">
                             Submit
                           </button>
                         </form>
@@ -368,7 +453,7 @@ function App() {
                     <>
                       <button
                         onClick={() => { setIsAuthorized(false); setEditingId(null); }}
-                        className="mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-3 py-1 rounded"
+                        className="mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-5 py-3 rounded text-lg"
                       >
                         ← Back
                       </button>
@@ -383,13 +468,11 @@ function App() {
                             return;
                           }
                           try {
-                            const response = await fetch('http://localhost:3001/parts', {
+                            const newPart = await fetchJSON('/parts', {
                               method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({ name, part_number, location }),
                             });
-                            const newPart = await response.json();
-                            setResults(prev => [newPart, ...prev]); // prepend new part
+                            setResults(prev => [newPart, ...prev]);
                             e.target.reset();
                           } catch (error) {
                             console.error('Error adding part:', error);
@@ -402,11 +485,11 @@ function App() {
                           ➕ Add New Part
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <input name="name" placeholder="Name" className="input" />
-                          <input name="part_number" placeholder="Part Number" className="input" />
-                          <input name="location" placeholder="Location" className="input" />
+                          <input name="name" placeholder="Name" className="input text-lg py-3" />
+                          <input name="part_number" placeholder="Part Number" className="input text-lg py-3" />
+                          <input name="location" placeholder="Location" className="input text-lg py-3" />
                         </div>
-                        <button type="submit" className="btn-green">
+                        <button type="submit" className="btn-green text-lg px-6 py-3">
                           Add Part
                         </button>
                       </form>
@@ -415,29 +498,38 @@ function App() {
 
                   {/* === Search Form === */}
                   <form
-                    onSubmit={e => { e.preventDefault(); setPage(1); }} // resets to first page; effect triggers search
+                    onSubmit={e => {
+                      e.preventDefault();
+                      // If already on page 1, run the search immediately.
+                      if (page !== 1) setPage(1);
+                      else handleSearch();
+                    }}
                     className="flex flex-col md:flex-row gap-4 mb-6"
                   >
                     <input
-                      className="input w-full"
+                      className="input w-full text-lg py-3"
                       placeholder={`Search by ${type}`}
                       value={query}
                       onChange={e => setQuery(e.target.value)}
                     />
                     <select
-                      className="input"
+                      className="input text-lg py-3"
                       value={type}
                       onChange={e => setType(e.target.value)}
                     >
                       <option value="name">Name</option>
                       <option value="number">Number</option>
                     </select>
-                    <button type="submit" className="btn-blue">
+                    <button
+                      type="submit"
+                      onClick={() => { if (page === 1) handleSearch(); }}
+                      className="btn-blue text-lg px-6 py-3"
+                    >
                       Search
                     </button>
                   </form>
 
-                  {/* Loading indicator during fetch */}
+                  {/* Loading indicator */}
                   {isLoading && (
                     <div className="flex justify-center items-center my-4">
                       <div className="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-10 w-10"></div>
@@ -464,31 +556,31 @@ function App() {
                                     name="name"
                                     value={editValues.name}
                                     onChange={handleEditChange}
-                                    className="input"
+                                    className="input text-lg py-3"
                                   />
                                   <input
                                     name="part_number"
                                     value={editValues.part_number}
                                     onChange={handleEditChange}
-                                    className="input"
+                                    className="input text-lg py-3"
                                   />
                                   <input
                                     name="location"
                                     value={editValues.location}
                                     onChange={handleEditChange}
-                                    className="input"
+                                    className="input text-lg py-3"
                                   />
                                 </div>
                                 <div className="flex space-x-2">
                                   <button
                                     onClick={() => handleEditSave(part.id)}
-                                    className="btn-green"
+                                    className="btn-green text-lg px-6 py-3"
                                   >
                                     Save
                                   </button>
                                   <button
                                     onClick={() => setEditingId(null)}
-                                    className="btn-gray"
+                                    className="btn-gray text-lg px-6 py-3"
                                   >
                                     Cancel
                                   </button>
@@ -502,16 +594,16 @@ function App() {
                                   <span className="text-gray-700">{part.location}</span>
                                 </div>
                                 {isAuthorized && (
-                                  <div className="mt-2 flex space-x-2">
+                                  <div className="mt-2 flex space-x-3">
                                     <button
                                       onClick={e => { e.stopPropagation(); handleEdit(part); }}
-                                      className="px-3 py-1 bg-yellow-300 hover:bg-yellow-400 text-gray-800 rounded"
+                                      className="px-5 py-3 bg-yellow-300 hover:bg-yellow-400 text-gray-800 rounded text-lg"
                                     >
                                       Edit
                                     </button>
                                     <button
                                       onClick={e => { e.stopPropagation(); handleDelete(part.id); }}
-                                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded"
+                                      className="px-5 py-3 bg-red-500 hover:bg-red-600 text-white rounded text-lg"
                                     >
                                       Delete
                                     </button>
@@ -528,7 +620,7 @@ function App() {
                         <button
                           disabled={page === 1}
                           onClick={() => setPage(prev => Math.max(1, prev - 1))}
-                          className={`px-4 py-2 rounded ${page === 1 ? 'bg-gray-300' : 'bg-blue-500 text-white'}`}
+                          className={`px-5 py-3 rounded text-lg ${page === 1 ? 'bg-gray-300' : 'bg-blue-500 text-white'}`}
                         >
                           Previous
                         </button>
@@ -536,7 +628,7 @@ function App() {
                         <button
                           disabled={page >= totalPages}
                           onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-                          className={`px-4 py-2 rounded ${page >= totalPages ? 'bg-gray-300' : 'bg-blue-500 text-white'}`}
+                          className={`px-5 py-3 rounded text-lg ${page >= totalPages ? 'bg-gray-300' : 'bg-blue-500 text-white'}`}
                         >
                           Next
                         </button>
@@ -557,19 +649,19 @@ function App() {
         </div>
       )}
 
-      {/* Confirmation Modal (shared for deletions, etc.) */}
+      {/* Confirmation Modal (solid black overlay) */}
       {confirmOpen && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-[92%]">
             <p className="mb-4">{confirmMessage}</p>
             <div className="flex justify-end space-x-4">
               <button
                 onClick={() => { confirmCallback(); setConfirmOpen(false); }}
-                className="btn-red"
+                className="btn-red text-lg px-6 py-3"
               >
                 Yes
               </button>
-              <button onClick={() => setConfirmOpen(false)} className="btn-gray">
+              <button onClick={() => setConfirmOpen(false)} className="btn-gray text-lg px-6 py-3">
                 No
               </button>
             </div>

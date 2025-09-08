@@ -4,23 +4,78 @@ Description: Contains global styles, resets, utility classes, button styles, loa
 */
 
 /* === General Reset ======================================================= */
-/* Resets margin, padding, and box-sizing for all elements */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* === ABB Logo Styles ===================================================== */
+/* Keep the logo out of the card's layout and non-blocking */
+.logo-container {
+  position: fixed;   /* was absolute — fixed keeps it in the viewport corner */
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  pointer-events: none;  /* prevents covering buttons beneath */
+}
+
+.logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+  pointer-events: auto; /* set to 'none' if you don't want it clickable */
+}
+
 /* === Base Styles ========================================================= */
-/* Sets default font, background color, and text color for the body */
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: #f3f4f6;
   color: #1f2937;
 }
 
+.app-root { min-height: 100vh; }
+.page {
+  padding: 32px 20px;
+  display: flex;
+  justify-content: center;
+}
+
+/* === Card (white rounded panel) ========================================= */
+/* Clips children to preserve rounded corners and shows a clean border+shadow */
+.card {
+  position: relative;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px 24px;
+  border: 1px solid rgba(0,0,0,0.06); /* subtle rim like your reference */
+  background-clip: padding-box;       /* ensures crisp curve */
+  box-shadow: 0 16px 30px rgba(0,0,0,0.12);
+  overflow: hidden;                   /* ✅ critical so children don't "flatten" the corner */
+  max-width: 900px;
+  width: 100%;
+}
+
+/* sample layout bits so the demo looks like your screenshot */
+.title {
+  font-size: 28px;
+  font-weight: 800;
+  margin-bottom: 16px;
+}
+
+.button-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.search-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 /* === Utility Classes ===================================================== */
-/* Input styling: padding, border, radius, focus transition */
 .input {
   padding: 0.5rem 1rem;
   border: 1px solid #d1d5db;
@@ -29,106 +84,71 @@ body {
   transition: border-color 0.3s ease;
 }
 
-.input:focus {
-  /* Highlight border when input is focused */
-  border-color: #3b82f6;
-}
+.input:focus { border-color: #3b82f6; }
 
 /* === Button Styles ======================================================= */
-/* Style for primary blue button */
 .btn-blue {
   background-color: #3b82f6;
   color: white;
   padding: 0.5rem 1rem;
   border-radius: 0.5rem;
   transition: background-color 0.3s;
+  border: none;
+  cursor: pointer;
 }
 
-.btn-blue:hover {
-  /* Darken blue on hover */
-  background-color: #2563eb;
-}
+.btn-blue:hover { background-color: #2563eb; }
 
-/* Style for success green button */
 .btn-green {
-  background-color: #10b981;
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
+  background-color: #10b981; color: white;
+  padding: 0.5rem 1rem; border-radius: 0.5rem;
   transition: background-color 0.3s;
 }
 
-.btn-green:hover {
-  /* Darken green on hover */
-  background-color: #059669;
-}
+.btn-green:hover { background-color: #059669; }
 
-/* Style for warning yellow button */
 .btn-yellow {
-  background-color: #facc15;
-  color: #1f2937;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
+  background-color: #facc15; color: #1f2937;
+  padding: 0.5rem 1rem; border-radius: 0.5rem;
 }
 
-/* Style for danger red button */
 .btn-red {
-  background-color: #ef4444;
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
+  background-color: #ef4444; color: white;
+  padding: 0.5rem 1rem; border-radius: 0.5rem;
 }
 
-/* Style for secondary gray button */
 .btn-gray {
-  background-color: #9ca3af;
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
+  background-color: #9ca3af; color: white;
+  padding: 0.5rem 1rem; border-radius: 0.5rem;
 }
 
-/* Style for navigation buttons */
 .btn-nav {
-  background-color: #6b7280;
-  color: white;
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
+  background-color: #6b7280; color: white;
+  padding: 0.5rem 1rem; border-radius: 0.5rem;
 }
 
 .btn-nav:disabled {
-  /* Disabled nav button state */
-  background-color: #d1d5db;
-  cursor: not-allowed;
+  background-color: #d1d5db; cursor: not-allowed;
 }
 
-/* === Loading Spinner ====================================================== */
-/* Spinner animation for loading states */
+/* === Loading Spinner ===================================================== */
 .loader {
   border-top-color: #3b82f6;
   animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-  /* Rotating animation definition */
-  to {
-    transform: rotate(360deg);
-  }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* === Animations ========================================================== */
-/* Fade-in animation for elements */
 @keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.animate-fade-in {
-  /* Apply fade-in effect */
-  animation: fade-in 0.4s ease-in-out;
+.animate-fade-in { animation: fade-in 0.4s ease-in-out; }
+
+/* --- demo splash placeholder (remove if you have a real component) --- */
+.splash-dummy {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  background: #111827; color: white; font-size: 20px; z-index: 2000;
 }
