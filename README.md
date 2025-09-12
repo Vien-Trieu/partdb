@@ -15,6 +15,7 @@ A simple parts lookup system: store part numbers in a database so employees can 
 - [Development Notes](#development-notes)
 - [API & Health Check](#api--health-check)
 - [Troubleshooting](#troubleshooting)
+- [Electron Packaging Guide](#electron-packaging-guide)
 - [Roadmap](#roadmap)
 
 ---
