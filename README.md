@@ -16,7 +16,6 @@ A simple parts lookup system: store part numbers in a database so employees can 
 - [API & Health Check](#api--health-check)
 - [Troubleshooting](#troubleshooting)
 - [Roadmap](#roadmap)
-- [License](#license)
 
 ---
 
@@ -84,11 +83,14 @@ _Add screenshots or a short GIF here (e.g., the splash screen and a search)._
   # http://localhost:5173
 ```
 ## Environment Variables
+```
   Create a .env in the project root (or client/.env if you prefer). The client reads:
   VITE_API_BASE=http://localhost:3001
   VITE_API_BASE – Base URL the frontend uses to talk to the backend.
   If you deploy the backend elsewhere, update this value accordingly.
+```
 Available Scripts
+```
   From the project root:
 
   # Start the frontend dev server
@@ -105,8 +107,9 @@ Available Scripts
 
 
   If you later split client/server into separate packages, document those scripts under each directory.
+```
 ## Development Notes
-
+```
   Start the backend first, then the Vite dev server, so the frontend can reach the API.
   
   Tailwind utility classes live in client/src/index.css and are configured via tailwind.config.js.
@@ -145,9 +148,9 @@ Available Scripts
   Ensure index.css is imported in main.jsx.
   
   Verify Tailwind config and content paths include your JSX/TSX files.
-  
+  ```
  ## Roadmap
-  
+  ```
   Persist search query across navigations/windows
   
   Part detail view with back-to-list navigation
@@ -157,3 +160,4 @@ Available Scripts
   Optional auth / PIN-protected actions with server-side enforcement
   
   CI for lint/build/test
+```
