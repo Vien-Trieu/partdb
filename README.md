@@ -67,12 +67,11 @@ _Add screenshots or a short GIF here (e.g., the splash screen and a search)._
 
 ## Quick Start
 
-### 1) Clone
-```bash
-git clone https://github.com/Vien-Trieu/partdb.git
-cd partdb
+## 1) Clone
+  git clone https://github.com/Vien-Trieu/partdb.git
+  cd partdb
 ## 2) Install dependencies
-npm install
+  npm install
 ## 3) Configure env
   Create a .env file (see Environment Variables).
 ## 4) Start backend (first)
@@ -105,7 +104,7 @@ Available Scripts
 
 
   If you later split client/server into separate packages, document those scripts under each directory.
-Development Notes
+## Development Notes
 
   Start the backend first, then the Vite dev server, so the frontend can reach the API.
   
@@ -146,7 +145,7 @@ Development Notes
   
   Verify Tailwind config and content paths include your JSX/TSX files.
   
-  Roadmap
+ ## Roadmap
   
   Persist search query across navigations/windows
   
