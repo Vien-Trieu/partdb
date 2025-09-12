@@ -67,17 +67,17 @@ _Add screenshots or a short GIF here (e.g., the splash screen and a search)._
 
 ## Quick Start
 ```
-## 1) Clone
+ 1) Clone
   git clone https://github.com/Vien-Trieu/partdb.git
   cd partdb
-## 2) Install dependencies
+ 2) Install dependencies
   npm install
-## 3) Configure env
+ 3) Configure env
   Create a .env file (see Environment Variables).
-## 4) Start backend (first)
+ 4) Start backend (first)
   # from project root (or /server if you split it later)
   node index.js
-## 5) Start frontend
+ 5) Start frontend
   # in project root or /client
   npm run dev
   # Vite will print the local URL, usually:
