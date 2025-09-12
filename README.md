@@ -66,7 +66,7 @@ _Add screenshots or a short GIF here (e.g., the splash screen and a search)._
 ---
 
 ## Quick Start
-
+```
 ## 1) Clone
   git clone https://github.com/Vien-Trieu/partdb.git
   cd partdb
@@ -82,6 +82,7 @@ _Add screenshots or a short GIF here (e.g., the splash screen and a search)._
   npm run dev
   # Vite will print the local URL, usually:
   # http://localhost:5173
+```
 ## Environment Variables
   Create a .env in the project root (or client/.env if you prefer). The client reads:
   VITE_API_BASE=http://localhost:3001
