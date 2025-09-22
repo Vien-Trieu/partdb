@@ -45,30 +45,48 @@ app.get('/test-supabase', async (req, res) => {
 });
 
 /* === Routes: Parts CRUD with Pagination ================================= */
-// Search parts by name or number, with pagination
+// Search parts by name or number, with pagination (supports partial matches)
 app.get('/parts', async (req, res) => {
-  const { name, number } = req.query;
-  let { page = '1', limit = '5' } = req.query;
-  if (!name && !number) {
-    return res.status(400).json({ error: 'Please provide a name or number query parameter' });
+  try {
+    const { name, number } = req.query;
+    let { page = '1', limit = '5' } = req.query;
+
+    if (!name && !number) {
+      return res.status(400).json({ error: 'Please provide a name or number query parameter' });
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(limit, 10) || 5);
+    const from = (pageNum - 1) * limitNum;
+    const to = from + limitNum - 1;
+
+    // Start query with total count for pagination
+    let q = supabase.from('parts').select('*', { count: 'exact' });
+
+    if (name) {
+      // Partial match on name (contains)
+      q = q.ilike('name', `%${name}%`);
+    } else if (number) {
+      // ✅ Partial match on part_number
+      // Use `%${number}%` for contains OR `${number}%` for prefix-only
+      q = q.ilike('part_number', `%${number}%`);
+    }
+
+    // You had id-desc; keep it, or switch to part_number ascending if you prefer
+    q = q.order('id', { ascending: false }).range(from, to);
+
+    const { data, error, count } = await q;
+    if (error) {
+      console.error('❌ Error fetching parts from Supabase:', error);
+      return res.status(500).json({ error: 'Internal server error', details: error });
+    }
+
+    const totalPages = Math.max(1, Math.ceil((count || 0) / limitNum));
+    return res.json({ results: data || [], totalPages });
+  } catch (e) {
+    console.error('🔥 Unexpected error:', e);
+    return res.status(500).json({ error: 'Unexpected server error', details: e.message });
   }
-  const pageNum = Math.max(1, parseInt(page, 10));
-  const limitNum = Math.max(1, parseInt(limit, 10));
-  const offset = (pageNum - 1) * limitNum;
-  let queryBuilder = supabase.from('parts').select('*', { count: 'exact' });
-  if (name) {
-    queryBuilder = queryBuilder.ilike('name', `%${name}%`);
-  } else {
-    queryBuilder = queryBuilder.eq('part_number', number);
-  }
-  queryBuilder = queryBuilder.order('id', { ascending: false }).range(offset, offset + limitNum - 1);
-  const { data, error, count } = await queryBuilder;
-  if (error) {
-    console.error('❌ Error fetching parts from Supabase:', error);
-    return res.status(500).json({ error: 'Internal server error', details: error });
-  }
-  const totalPages = Math.ceil((count || 0) / limitNum);
-  return res.json({ results: data, totalPages });
 });
 
 // Add a new part
@@ -123,6 +141,35 @@ app.delete('/parts/:id', async (req, res) => {
   return res.sendStatus(204);
 });
 
+// --- ADD: Type-ahead suggestions for part numbers ---
+// GET /parts/suggest?numberPrefix=AB1&limit=8
+app.get('/parts/suggest', async (req, res) => {
+  try {
+    const { numberPrefix = '', limit = 8 } = req.query;
+    const lim = Math.min(parseInt(limit, 10) || 8, 25); // hard cap
+
+    if (!numberPrefix) return res.json([]);
+
+    // Supabase prefix match with ilike 'prefix%'
+    const { data, error } = await supabase
+      .from('parts')
+      .select('id, name, part_number, location')
+      .ilike('part_number', `${numberPrefix}%`)
+      .order('part_number', { ascending: true })
+      .limit(lim);
+
+    if (error) {
+      console.error('Suggest error:', error);
+      return res.status(500).json({ error: 'Failed to fetch suggestions' });
+    }
+
+    return res.json(data || []);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 /* === Routes: Miscellaneous ============================================= */
 // Hello test endpoint
 app.get('/api/hello', (req, res) => {
@@ -141,9 +188,10 @@ app.get('/debug-connection', async (req, res) => {
   }
 });
 
-/* === Server Startup ==================================================== */
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+/* === Server Startup (loopback-only binding) ==================================================== */
+const HOST = '127.0.0.1';
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT} (loopback only)`);
 });
 
 /* === Global Error Handlers ============================================= */

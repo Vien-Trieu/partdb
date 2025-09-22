@@ -14,10 +14,11 @@ import './App.css';
 
 const API_BASE =
   (import.meta && import.meta.env && import.meta.env.VITE_API_BASE) ||
-  'http://localhost:3001';
+  'http://127.0.0.1:3001';
 
 /** Robust fetch with timeout, retry, and no-store cache (handles 204/empty bodies) */
-async function fetchJSON(path, options = {}, { retries = 1, timeoutMs = 8000 } = {}) {
+/** Faster default: 3s timeout, no retry */
+async function fetchJSON(path, options = {}, { retries = 0, timeoutMs = 3000 } = {}) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -28,22 +29,13 @@ async function fetchJSON(path, options = {}, { retries = 1, timeoutMs = 8000 } =
       headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    // e.g., DELETE endpoints often return 204
     if (res.status === 204) return null;
-
     const text = await res.text();
     if (!text) return null;
-
-    try {
-      return JSON.parse(text);
-    } catch {
-      // Not JSON—return raw text so caller can decide
-      return text;
-    }
+    try { return JSON.parse(text); } catch { return text; }
   } catch (err) {
     if (retries > 0) {
-      await new Promise(r => setTimeout(r, 400));
+      await new Promise(r => setTimeout(r, 250));
       return fetchJSON(path, options, { retries: retries - 1, timeoutMs });
     }
     throw err;
@@ -51,6 +43,7 @@ async function fetchJSON(path, options = {}, { retries = 1, timeoutMs = 8000 } =
     clearTimeout(id);
   }
 }
+
 
 function App() {
   /* === UI / splash control === */
@@ -102,6 +95,15 @@ function App() {
   // Remember last successful search params for auto-refresh on visibility/focus
   const lastSearchRef = useRef({ query: '', type: 'name', page: 1 });
 
+  const skipNextSearchRef = useRef(false);
+
+
+  /* === 🔥 NEW: Suggestions state (for part number type-ahead) === */
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightIndex, setHighlightIndex] = useState(-1);
+  const suggestAbortRef = useRef(null);
+
   /** Execute a search based on current query/type/page */
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -112,9 +114,13 @@ function App() {
     setIsLoading(true);
     setLastError('');
     try {
-      const data = await fetchJSON(
-        `/parts?${type}=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
-      );
+      const qs = new URLSearchParams({
+        [type]: query,
+        page: String(page),
+        limit: String(limit),
+      }).toString();
+
+      const data = await fetchJSON(`/parts?${qs}`);
       if (data) {
         setResults(Array.isArray(data.results) ? data.results : []);
         setTotalPages(Number.isFinite(data.totalPages) ? data.totalPages : 1);
@@ -123,7 +129,7 @@ function App() {
         setTotalPages(1);
       }
       addLog(`Searched parts by "${type}" with query "${query}" (page ${page})`);
-      // Save last successful search to both ref and localStorage (for persistence)
+      // Save last successful search
       lastSearchRef.current = { query, type, page };
       try {
         localStorage.setItem('lastSearch', JSON.stringify(lastSearchRef.current));
@@ -136,14 +142,57 @@ function App() {
     }
   };
 
+  /** 🔥 NEW: Fetch suggestions for part numbers (prefix match) */
+  const fetchSuggestions = async (prefix) => {
+    // Cancel any in-flight suggestions request
+    if (suggestAbortRef.current) {
+      suggestAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    suggestAbortRef.current = controller;
+
+    try {
+      // Backend route added below in the Express snippet
+      const qs = new URLSearchParams({ numberPrefix: prefix, limit: '8' }).toString();
+      const data = await fetchJSON(`/parts/suggest?${qs}`, { signal: controller.signal });
+      setSuggestions(Array.isArray(data) ? data : []);
+      setShowSuggestions(true);
+      setHighlightIndex(-1);
+    } catch (e) {
+      // Ignore abort errors
+    } finally {
+      suggestAbortRef.current = null;
+    }
+  };
+
   /** Re-run search when query/type changes (reset to page 1 or search if already 1) */
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
+      setSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
-    if (page !== 1) setPage(1);
-    else handleSearch();
+
+    // 🔥 NEW: when searching by number, we also fetch suggestions (debounced)
+    if (type === 'number') {
+      const prefix = query.trim();
+      const id = setTimeout(() => {
+        // Only suggest for at least 1 char; change to >=2 if you prefer
+        if (prefix.length >= 1) fetchSuggestions(prefix);
+        else {
+          setSuggestions([]);
+          setShowSuggestions(false);
+        }
+      }, 200); // debounce 200ms
+
+      return () => clearTimeout(id);
+    } else {
+      // Hide suggestions when not in "number" mode
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, type]);
 
@@ -153,9 +202,14 @@ function App() {
       setResults([]);
       return;
     }
-    handleSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page]);
+    if (skipNextSearchRef.current) { // ✅ skip first auto-run
+        skipNextSearchRef.current = false;
+        return;
+      }
+    if (page !== 1) setPage(1);
+      else handleSearch();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, page]);
 
   /** Auto-refresh last search after long idle / tab focus */
   useEffect(() => {
@@ -184,9 +238,8 @@ function App() {
       if (saved && saved.query && saved.query.trim()) {
         setQuery(saved.query);
         setType(saved.type || 'name');
-        // We intentionally don't set page here because the [query,type] effect
-        // resets page to 1 and triggers a fresh search automatically.
         lastSearchRef.current = { query: saved.query, type: saved.type || 'name', page: 1 };
+        skipNextSearchRef.current = true; // ✅ don't fire a search immediately
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -279,6 +332,49 @@ function App() {
       setLogPin('');
     }
   };
+
+  /** 🔥 NEW: when user picks a suggestion */
+  const pickSuggestion = (s) => {
+    setQuery(s.part_number);
+    setShowSuggestions(false);
+    setSuggestions([]);
+    // Start at page 1 and run search immediately
+    if (page !== 1) setPage(1);
+    else handleSearch();
+  };
+
+  /** 🔥 NEW: keyboard handling on input */
+  const onQueryKeyDown = (e) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightIndex((i) => (i + 1) % suggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === 'Enter') {
+      if (highlightIndex >= 0 && highlightIndex < suggestions.length) {
+        e.preventDefault();
+        pickSuggestion(suggestions[highlightIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+    }
+  };
+
+  // Close suggestions when clicking outside
+  const inputWrapperRef = useRef(null);
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!inputWrapperRef.current) return;
+      if (!inputWrapperRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
 
   return (
     <>
@@ -500,22 +596,50 @@ function App() {
                   <form
                     onSubmit={e => {
                       e.preventDefault();
-                      // If already on page 1, run the search immediately.
                       if (page !== 1) setPage(1);
                       else handleSearch();
                     }}
                     className="flex flex-col md:flex-row gap-4 mb-6"
                   >
-                    <input
-                      className="input w-full text-lg py-3"
-                      placeholder={`Search by ${type}`}
-                      value={query}
-                      onChange={e => setQuery(e.target.value)}
-                    />
+                    {/* 🔥 NEW: wrapper for suggestions positioning */}
+                    <div className="relative w-full" ref={inputWrapperRef}>
+                      <input
+                        className="input w-full text-lg py-3"
+                        placeholder={`Search by ${type}`}
+                        value={query}
+                        onChange={e => { setQuery(e.target.value); setShowSuggestions(true); }}
+                        onKeyDown={onQueryKeyDown}
+                        onFocus={() => { if (type === 'number' && suggestions.length) setShowSuggestions(true); }}
+                      />
+                      {/* 🔥 NEW: suggestions dropdown */}
+                      {type === 'number' && showSuggestions && suggestions.length > 0 && (
+                        <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-auto">
+                          {suggestions.map((s, idx) => (
+                            <li
+                              key={s.id}
+                              onMouseDown={(e) => { e.preventDefault(); }} // prevent input blur
+                              onClick={() => pickSuggestion(s)}
+                              className={`px-3 py-2 cursor-pointer ${idx === highlightIndex ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+                            >
+                              <div className="flex justify-between">
+                                <span className="font-semibold text-gray-800">{s.part_number}</span>
+                                <span className="text-gray-500">{s.location}</span>
+                              </div>
+                              <div className="text-sm text-gray-600">{s.name}</div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
                     <select
                       className="input text-lg py-3"
                       value={type}
-                      onChange={e => setType(e.target.value)}
+                      onChange={e => {
+                        setType(e.target.value);
+                        setShowSuggestions(false);
+                        setSuggestions([]);
+                      }}
                     >
                       <option value="name">Name</option>
                       <option value="number">Number</option>

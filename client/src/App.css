@@ -1,5 +1,6 @@
 /*
 Author: Vien Trieu (Date: 6-27-2025)
+Date Modified: 9-22-2025
 Description: Contains global styles, resets, utility classes, button styles, loading spinner, and animations for the application.
 */
 
@@ -14,14 +15,14 @@ Description: Contains global styles, resets, utility classes, button styles, loa
 /* Keep the logo out of the card's layout and non-blocking */
 .logo-container {
   position: fixed;   /* was absolute — fixed keeps it in the viewport corner */
-  top: 10px;
-  left: 10px;
+  top: 5px;
+  left: 30px;
   z-index: 1000;
   pointer-events: none;  /* prevents covering buttons beneath */
 }
 
 .logo {
-  height: 40px;
+  height: 100px;
   width: auto;
   object-fit: contain;
   pointer-events: auto; /* set to 'none' if you don't want it clickable */
