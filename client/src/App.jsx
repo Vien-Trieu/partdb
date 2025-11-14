@@ -5,37 +5,48 @@ work correctly and smoothly.
 DISCLAIMER: THIS FILE IS CONSTANTLY CHANGING PLEASE BE ADVISED!!!
 */
 
-import React, { useState, useEffect, useRef } from 'react';
-import SplashScreen from './components/SplashScreen';
-import ABB from './assets/ABB.png';
-import './index.css';
-import './animations.css';
-import './App.css';
+import React, { useState, useEffect, useRef } from "react";
+import SplashScreen from "./components/SplashScreen";
+import ABB from "./assets/ABB.png";
+import "./index.css";
+import "./animations.css";
+import "./App.css";
 
 const API_BASE =
   (import.meta && import.meta.env && import.meta.env.VITE_API_BASE) ||
-  'http://127.0.0.1:3001';
+  "http://127.0.0.1:3001";
 
 /** Robust fetch with timeout, retry, and no-store cache (handles 204/empty bodies) */
 /** Faster default: 3s timeout, no retry */
-async function fetchJSON(path, options = {}, { retries = 0, timeoutMs = 3000 } = {}) {
+async function fetchJSON(
+  path,
+  options = {},
+  { retries = 0, timeoutMs = 3000 } = {}
+) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const res = await fetch(`${API_BASE}${path}`, {
-      cache: 'no-store',
+      cache: "no-store",
       ...options,
       signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     if (res.status === 204) return null;
     const text = await res.text();
     if (!text) return null;
-    try { return JSON.parse(text); } catch { return text; }
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
   } catch (err) {
     if (retries > 0) {
-      await new Promise(r => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 250));
       return fetchJSON(path, options, { retries: retries - 1, timeoutMs });
     }
     throw err;
@@ -44,25 +55,35 @@ async function fetchJSON(path, options = {}, { retries = 0, timeoutMs = 3000 } =
   }
 }
 
-
 function App() {
   /* === UI / splash control === */
   const [showSplash, setShowSplash] = useState(true);
 
   /* === Search state === */
-  const [query, setQuery] = useState('');
-  const [type, setType] = useState('name'); // name | number
+  const [query, setQuery] = useState("");
+  const [type, setType] = useState("name"); // name | number
   const [results, setResults] = useState([]);
   const [selectedPart, setSelectedPart] = useState(null);
 
   /* === Editing state === */
   const [editingId, setEditingId] = useState(null);
-  const [editValues, setEditValues] = useState({ name: '', part_number: '', location: '' });
+  const [editValues, setEditValues] = useState({
+    name: "",
+    part_number: "",
+    location: "",
+    image_url: "", // ⭐ NEW
+  });
+
+  /* === Image state (Add + Edit) ======================================= */
+  const [addImageFile, setAddImageFile] = useState(null); // ⭐ NEW
+  const [addImagePreview, setAddImagePreview] = useState(""); // ⭐ NEW
+  const [editImageFile, setEditImageFile] = useState(null); // ⭐ NEW
+  const [editImagePreview, setEditImagePreview] = useState(""); // ⭐ NEW
 
   /* === Authorization for managing parts === */
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [showPinPrompt, setShowPinPrompt] = useState(false);
-  const [pin, setPin] = useState('');
+  const [pin, setPin] = useState("");
 
   /* === Pagination === */
   const [page, setPage] = useState(1);
@@ -72,31 +93,30 @@ function App() {
   /* === Feedback / UX state === */
   const [isLoading, setIsLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [confirmMessage, setConfirmMessage] = useState('');
+  const [confirmMessage, setConfirmMessage] = useState("");
   const [confirmCallback, setConfirmCallback] = useState(() => {});
-  const [notification, setNotification] = useState('');
-  const [lastError, setLastError] = useState('');
+  const [notification, setNotification] = useState("");
+  const [lastError, setLastError] = useState("");
 
   /* === Activity log === */
   const [logs, setLogs] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('activityLogs')) || [];
+      return JSON.parse(localStorage.getItem("activityLogs")) || [];
     } catch {
       return [];
     }
   });
   const [logPinPrompt, setLogPinPrompt] = useState(false);
-  const [logPin, setLogPin] = useState('');
+  const [logPin, setLogPin] = useState("");
   const [logsAuthorized, setLogsAuthorized] = useState(false);
 
   /* === View mode (main or logs) === */
-  const [viewMode, setViewMode] = useState('main');
+  const [viewMode, setViewMode] = useState("main");
 
   // Remember last successful search params for auto-refresh on visibility/focus
-  const lastSearchRef = useRef({ query: '', type: 'name', page: 1 });
+  const lastSearchRef = useRef({ query: "", type: "name", page: 1 });
 
   const skipNextSearchRef = useRef(false);
-
 
   /* === 🔥 NEW: Suggestions state (for part number type-ahead) === */
   const [suggestions, setSuggestions] = useState([]);
@@ -104,15 +124,41 @@ function App() {
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const suggestAbortRef = useRef(null);
 
+  /** ⭐ NEW: upload image helper (multipart/form-data) */
+  const uploadImage = async (file) => {
+    if (!file) return null;
+
+    const data = new FormData();
+    data.append("file", file);
+
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    try {
+      const res = await fetch(`${API_BASE}/upload-image`, {
+        method: "POST",
+        body: data,
+        signal: controller.signal,
+      });
+      if (!res.ok) {
+        throw new Error(`Image upload failed (HTTP ${res.status})`);
+      }
+      const json = await res.json();
+      return json.image_url || null;
+    } finally {
+      clearTimeout(id);
+    }
+  };
+
   /** Execute a search based on current query/type/page */
   const handleSearch = async () => {
     if (!query.trim()) {
       setResults([]);
-      setLastError('');
+      setLastError("");
       return;
     }
     setIsLoading(true);
-    setLastError('');
+    setLastError("");
     try {
       const qs = new URLSearchParams({
         [type]: query,
@@ -128,15 +174,20 @@ function App() {
         setResults([]);
         setTotalPages(1);
       }
-      addLog(`Searched parts by "${type}" with query "${query}" (page ${page})`);
+      addLog(
+        `Searched parts by "${type}" with query "${query}" (page ${page})`
+      );
       // Save last successful search
       lastSearchRef.current = { query, type, page };
       try {
-        localStorage.setItem('lastSearch', JSON.stringify(lastSearchRef.current));
+        localStorage.setItem(
+          "lastSearch",
+          JSON.stringify(lastSearchRef.current)
+        );
       } catch {}
     } catch (error) {
-      console.error('Search failed:', error);
-      setLastError('Search failed. Please try again.');
+      console.error("Search failed:", error);
+      setLastError("Search failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -144,7 +195,6 @@ function App() {
 
   /** 🔥 NEW: Fetch suggestions for part numbers (prefix match) */
   const fetchSuggestions = async (prefix) => {
-    // Cancel any in-flight suggestions request
     if (suggestAbortRef.current) {
       suggestAbortRef.current.abort();
     }
@@ -152,14 +202,18 @@ function App() {
     suggestAbortRef.current = controller;
 
     try {
-      // Backend route added below in the Express snippet
-      const qs = new URLSearchParams({ numberPrefix: prefix, limit: '8' }).toString();
-      const data = await fetchJSON(`/parts/suggest?${qs}`, { signal: controller.signal });
+      const qs = new URLSearchParams({
+        numberPrefix: prefix,
+        limit: "8",
+      }).toString();
+      const data = await fetchJSON(`/parts/suggest?${qs}`, {
+        signal: controller.signal,
+      });
       setSuggestions(Array.isArray(data) ? data : []);
       setShowSuggestions(true);
       setHighlightIndex(-1);
     } catch (e) {
-      // Ignore abort errors
+      // ignore
     } finally {
       suggestAbortRef.current = null;
     }
@@ -174,25 +228,21 @@ function App() {
       return;
     }
 
-    // 🔥 NEW: when searching by number, we also fetch suggestions (debounced)
-    if (type === 'number') {
+    if (type === "number") {
       const prefix = query.trim();
       const id = setTimeout(() => {
-        // Only suggest for at least 1 char; change to >=2 if you prefer
         if (prefix.length >= 1) fetchSuggestions(prefix);
         else {
           setSuggestions([]);
           setShowSuggestions(false);
         }
-      }, 200); // debounce 200ms
+      }, 200);
 
       return () => clearTimeout(id);
     } else {
-      // Hide suggestions when not in "number" mode
       setSuggestions([]);
       setShowSuggestions(false);
     }
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, type]);
 
@@ -202,19 +252,19 @@ function App() {
       setResults([]);
       return;
     }
-    if (skipNextSearchRef.current) { // ✅ skip first auto-run
-        skipNextSearchRef.current = false;
-        return;
-      }
+    if (skipNextSearchRef.current) {
+      skipNextSearchRef.current = false;
+      return;
+    }
     if (page !== 1) setPage(1);
-      else handleSearch();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    else handleSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, page]);
 
   /** Auto-refresh last search after long idle / tab focus */
   useEffect(() => {
     const onVisible = async () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === "visible") {
         const { query: q } = lastSearchRef.current;
         if (q && q.trim()) {
           try {
@@ -223,23 +273,27 @@ function App() {
         }
       }
     };
-    document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('focus', onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
     return () => {
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
     };
   }, []);
 
   /** Restore last search from localStorage on mount (optional persistence) */
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem('lastSearch'));
+      const saved = JSON.parse(localStorage.getItem("lastSearch"));
       if (saved && saved.query && saved.query.trim()) {
         setQuery(saved.query);
-        setType(saved.type || 'name');
-        lastSearchRef.current = { query: saved.query, type: saved.type || 'name', page: 1 };
-        skipNextSearchRef.current = true; // ✅ don't fire a search immediately
+        setType(saved.type || "name");
+        lastSearchRef.current = {
+          query: saved.query,
+          type: saved.type || "name",
+          page: 1,
+        };
+        skipNextSearchRef.current = true;
       }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -248,21 +302,21 @@ function App() {
   /** Delete part and refresh results */
   const performDelete = async (id) => {
     try {
-      await fetchJSON(`/parts/${id}`, { method: 'DELETE' }); // 204-friendly
+      await fetchJSON(`/parts/${id}`, { method: "DELETE" });
       if (query) await handleSearch();
-      else setResults(prev => prev.filter(p => p.id !== id));
-      setNotification('Part deleted successfully!');
+      else setResults((prev) => prev.filter((p) => p.id !== id));
+      setNotification("Part deleted successfully!");
       addLog(`Deleted part #${id}`);
-      setTimeout(() => setNotification(''), 3000);
+      setTimeout(() => setNotification(""), 3000);
     } catch (error) {
-      console.error('Error deleting part:', error);
-      alert('Failed to delete part.');
+      console.error("Error deleting part:", error);
+      alert("Failed to delete part.");
     }
   };
 
   /** Open confirmation dialog */
   const handleDelete = (id) => {
-    setConfirmMessage('Are you sure you want to delete this part?');
+    setConfirmMessage("Are you sure you want to delete this part?");
     setConfirmCallback(() => () => performDelete(id));
     setConfirmOpen(true);
   };
@@ -270,7 +324,14 @@ function App() {
   /** Start editing */
   const handleEdit = (part) => {
     setEditingId(part.id);
-    setEditValues({ name: part.name, part_number: part.part_number, location: part.location });
+    setEditValues({
+      name: part.name,
+      part_number: part.part_number,
+      location: part.location,
+      image_url: part.image_url || "", // ⭐ NEW
+    });
+    setEditImageFile(null); // ⭐ NEW
+    setEditImagePreview(part.image_url || ""); // ⭐ NEW
   };
 
   /** Edit inputs change */
@@ -278,37 +339,77 @@ function App() {
     setEditValues({ ...editValues, [e.target.name]: e.target.value });
   };
 
-  /** Save edited part */
+  /** ⭐ NEW: Add-form image change */
+  const handleAddImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setAddImageFile(null);
+      setAddImagePreview("");
+      return;
+    }
+    setAddImageFile(file);
+    setAddImagePreview(URL.createObjectURL(file));
+  };
+
+  /** ⭐ NEW: Edit-form image change */
+  const handleEditImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setEditImageFile(null);
+      setEditImagePreview(editValues.image_url || "");
+      return;
+    }
+    setEditImageFile(file);
+    setEditImagePreview(URL.createObjectURL(file));
+  };
+
+  /** Save edited part (including optional image) */
   const handleEditSave = async (id) => {
     const { name, part_number, location } = editValues;
     if (!name.trim() || !part_number.trim() || !location.trim()) {
-      alert('Please fill in all fields before saving.');
+      alert("Please fill in all fields before saving.");
       return;
     }
     try {
+      let image_url = editValues.image_url || null;
+
+      // If user picked a new file, upload it first
+      if (editImageFile) {
+        image_url = await uploadImage(editImageFile);
+      }
+
+      const payload = {
+        name: name.trim(),
+        part_number: part_number.trim(),
+        location: location.trim(),
+        image_url,
+      };
+
       const updated = await fetchJSON(`/parts/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(editValues),
+        method: "PUT",
+        body: JSON.stringify(payload),
       });
       if (updated) {
-        setResults(prev => prev.map(p => (p.id === id ? updated : p)));
+        setResults((prev) => prev.map((p) => (p.id === id ? updated : p)));
       }
       addLog(`Edited part #${id}`);
       setEditingId(null);
+      setEditImageFile(null);
+      setEditImagePreview("");
     } catch (error) {
-      console.error('Error updating part:', error);
-      alert('Failed to update part.');
+      console.error("Error updating part:", error);
+      alert("Failed to update part.");
     }
   };
 
   /** Append an entry to the activity log and persist */
   const addLog = (action) => {
-    const timestamp = new Date().toISOString().slice(0,16).replace('T',' ');
+    const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
     const entry = { id: Date.now(), action, timestamp };
-    setLogs(prev => {
+    setLogs((prev) => {
       const updated = [...prev, entry];
       try {
-        localStorage.setItem('activityLogs', JSON.stringify(updated));
+        localStorage.setItem("activityLogs", JSON.stringify(updated));
       } catch {}
       return updated;
     });
@@ -318,18 +419,18 @@ function App() {
   const submitLogPin = (e) => {
     e.preventDefault();
     if (!/^\d+$/.test(logPin)) {
-      alert('PIN must be numeric');
-      setLogPin('');
+      alert("PIN must be numeric");
+      setLogPin("");
       return;
     }
-    if (logPin === '4321') {
+    if (logPin === "4321") {
       setLogsAuthorized(true);
       setLogPinPrompt(false);
-      setLogPin('');
-      setViewMode('logs');
+      setLogPin("");
+      setViewMode("logs");
     } else {
-      alert('Incorrect PIN for logs');
-      setLogPin('');
+      alert("Incorrect PIN for logs");
+      setLogPin("");
     }
   };
 
@@ -338,7 +439,6 @@ function App() {
     setQuery(s.part_number);
     setShowSuggestions(false);
     setSuggestions([]);
-    // Start at page 1 and run search immediately
     if (page !== 1) setPage(1);
     else handleSearch();
   };
@@ -347,18 +447,20 @@ function App() {
   const onQueryKeyDown = (e) => {
     if (!showSuggestions || suggestions.length === 0) return;
 
-    if (e.key === 'ArrowDown') {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlightIndex((i) => (i + 1) % suggestions.length);
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlightIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
-    } else if (e.key === 'Enter') {
+      setHighlightIndex(
+        (i) => (i - 1 + suggestions.length) % suggestions.length
+      );
+    } else if (e.key === "Enter") {
       if (highlightIndex >= 0 && highlightIndex < suggestions.length) {
         e.preventDefault();
         pickSuggestion(suggestions[highlightIndex]);
       }
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       setShowSuggestions(false);
     }
   };
@@ -372,29 +474,32 @@ function App() {
         setShowSuggestions(false);
       }
     };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
   return (
     <>
       {/* Splash screen overlay */}
-      {showSplash && (
-        <SplashScreen onFinish={() => setShowSplash(false)} />
-      )}
+      {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
 
-      <div style={{ opacity: showSplash ? 0 : 1, transition: 'opacity 0.5s ease' }}>
+      <div
+        style={{ opacity: showSplash ? 0 : 1, transition: "opacity 0.5s ease" }}
+      >
         {/* Logo */}
-        <div className='logo-container'>
-          <img src={ABB} alt="ABB Logo" className='logo' />
+        <div className="logo-container">
+          <img src={ABB} alt="ABB Logo" className="logo" />
         </div>
 
         {/* === Activity Logs View === */}
-        {viewMode === 'logs' && logsAuthorized && (
+        {viewMode === "logs" && logsAuthorized && (
           <div className="min-h-screen bg-gray-100 flex items-start justify-center p-6">
             <div className="bg-white shadow-xl rounded-2xl p-8 max-w-2xl w-full">
               <button
-                onClick={() => { setViewMode('main'); setLogsAuthorized(false); }}
+                onClick={() => {
+                  setViewMode("main");
+                  setLogsAuthorized(false);
+                }}
                 className="mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded text-lg"
               >
                 ← Back
@@ -404,9 +509,10 @@ function App() {
                 <p>No actions logged yet.</p>
               ) : (
                 <ul className="list-disc pl-5 space-y-1">
-                  {logs.map(log => (
+                  {logs.map((log) => (
                     <li key={log.id}>
-                      <span className="font-mono">{log.timestamp}</span> — {log.action}
+                      <span className="font-mono">{log.timestamp}</span> —{" "}
+                      {log.action}
                     </li>
                   ))}
                 </ul>
@@ -416,7 +522,7 @@ function App() {
         )}
 
         {/* === Main Lookup Page === */}
-        {viewMode === 'main' && (
+        {viewMode === "main" && (
           <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">
             <div className="bg-white shadow-xl rounded-2xl p-8 max-w-2xl w-full">
               <h1 className="text-3xl font-bold mb-6 text-gray-800 text-center">
@@ -434,7 +540,10 @@ function App() {
               {lastError && (
                 <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded flex justify-between items-center">
                   <span>{lastError}</span>
-                  <button onClick={handleSearch} className="ml-4 btn-blue text-lg px-4 py-2">
+                  <button
+                    onClick={handleSearch}
+                    className="ml-4 btn-blue text-lg px-4 py-2"
+                  >
                     Retry
                   </button>
                 </div>
@@ -450,11 +559,22 @@ function App() {
                     ← Back to Results
                   </button>
                   <div className="space-y-4">
+                    {selectedPart.image_url /* ⭐ NEW: big image */ && (
+                      <img
+                        src={selectedPart.image_url}
+                        alt={selectedPart.name}
+                        className="w-full max-h-64 object-contain border rounded mb-4"
+                      />
+                    )}
                     <h2 className="text-2xl font-bold text-blue-800">
                       {selectedPart.name}
                     </h2>
-                    <p className="text-gray-700">Part Number: {selectedPart.part_number}</p>
-                    <p className="text-gray-700">Location: {selectedPart.location}</p>
+                    <p className="text-gray-700">
+                      Part Number: {selectedPart.part_number}
+                    </p>
+                    <p className="text-gray-700">
+                      Location: {selectedPart.location}
+                    </p>
                   </div>
                 </>
               ) : (
@@ -464,7 +584,7 @@ function App() {
                     <button
                       onClick={() => {
                         setResults([]);
-                        setQuery('');
+                        setQuery("");
                         setSelectedPart(null);
                         setPage(1);
                       }}
@@ -478,7 +598,7 @@ function App() {
                   {!isAuthorized && (
                     <>
                       <button
-                        onClick={() => setShowPinPrompt(prev => !prev)}
+                        onClick={() => setShowPinPrompt((prev) => !prev)}
                         className="mb-4 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded text-lg"
                         title="Enter PIN to manage parts"
                       >
@@ -486,20 +606,20 @@ function App() {
                       </button>
                       {showPinPrompt && !isAuthorized && (
                         <form
-                          onSubmit={e => {
+                          onSubmit={(e) => {
                             e.preventDefault();
                             if (!/^\d+$/.test(pin)) {
-                              alert('PIN must be numeric');
-                              setPin('');
+                              alert("PIN must be numeric");
+                              setPin("");
                               return;
                             }
-                            if (pin === '1234') {
+                            if (pin === "1234") {
                               setIsAuthorized(true);
-                              setPin('');
+                              setPin("");
                               setShowPinPrompt(false);
                             } else {
-                              alert('Incorrect PIN');
-                              setPin('');
+                              alert("Incorrect PIN");
+                              setPin("");
                             }
                           }}
                           className="mb-6"
@@ -507,12 +627,15 @@ function App() {
                           <input
                             type="password"
                             value={pin}
-                            onChange={e => setPin(e.target.value)}
+                            onChange={(e) => setPin(e.target.value)}
                             className="input mb-2 text-lg py-3"
                             placeholder="Enter 4-digit PIN"
                             maxLength={4}
                           />
-                          <button type="submit" className="btn-blue text-lg px-6 py-3">
+                          <button
+                            type="submit"
+                            className="btn-blue text-lg px-6 py-3"
+                          >
                             Submit
                           </button>
                         </form>
@@ -520,7 +643,7 @@ function App() {
 
                       {/* Activity logs access */}
                       <button
-                        onClick={() => setLogPinPrompt(prev => !prev)}
+                        onClick={() => setLogPinPrompt((prev) => !prev)}
                         disabled={logsAuthorized}
                         className="mb-6 bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded text-lg disabled:opacity-50"
                       >
@@ -531,12 +654,15 @@ function App() {
                           <input
                             type="password"
                             value={logPin}
-                            onChange={e => setLogPin(e.target.value)}
+                            onChange={(e) => setLogPin(e.target.value)}
                             className="input mb-2 text-lg py-3"
                             placeholder="Enter 4-digit PIN"
                             maxLength={4}
                           />
-                          <button type="submit" className="btn-blue text-lg px-6 py-3">
+                          <button
+                            type="submit"
+                            className="btn-blue text-lg px-6 py-3"
+                          >
                             Submit
                           </button>
                         </form>
@@ -548,31 +674,50 @@ function App() {
                   {isAuthorized && (
                     <>
                       <button
-                        onClick={() => { setIsAuthorized(false); setEditingId(null); }}
+                        onClick={() => {
+                          setIsAuthorized(false);
+                          setEditingId(null);
+                          setAddImageFile(null); // ⭐ NEW
+                          setAddImagePreview(""); // ⭐ NEW
+                        }}
                         className="mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-5 py-3 rounded text-lg"
                       >
                         ← Back
                       </button>
                       <form
-                        onSubmit={async e => {
+                        onSubmit={async (e) => {
                           e.preventDefault();
                           const name = e.target.name.value.trim();
                           const part_number = e.target.part_number.value.trim();
                           const location = e.target.location.value.trim();
                           if (!name || !part_number || !location) {
-                            alert('Please fill in all fields.');
+                            alert("Please fill in all fields.");
                             return;
                           }
                           try {
-                            const newPart = await fetchJSON('/parts', {
-                              method: 'POST',
-                              body: JSON.stringify({ name, part_number, location }),
+                            let image_url = null;
+                            if (addImageFile) {
+                              image_url = await uploadImage(addImageFile); // ⭐ NEW
+                            }
+
+                            const body = {
+                              name,
+                              part_number,
+                              location,
+                              image_url,
+                            };
+
+                            const newPart = await fetchJSON("/parts", {
+                              method: "POST",
+                              body: JSON.stringify(body),
                             });
-                            setResults(prev => [newPart, ...prev]);
+                            setResults((prev) => [newPart, ...prev]);
                             e.target.reset();
+                            setAddImageFile(null); // ⭐ NEW
+                            setAddImagePreview(""); // ⭐ NEW
                           } catch (error) {
-                            console.error('Error adding part:', error);
-                            alert('Failed to add part.');
+                            console.error("Error adding part:", error);
+                            alert("Failed to add part.");
                           }
                         }}
                         className="mb-8 space-y-4"
@@ -581,11 +726,44 @@ function App() {
                           ➕ Add New Part
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <input name="name" placeholder="Name" className="input text-lg py-3" />
-                          <input name="part_number" placeholder="Part Number" className="input text-lg py-3" />
-                          <input name="location" placeholder="Location" className="input text-lg py-3" />
+                          <input
+                            name="name"
+                            placeholder="Name"
+                            className="input text-lg py-3"
+                          />
+                          <input
+                            name="part_number"
+                            placeholder="Part Number"
+                            className="input text-lg py-3"
+                          />
+                          <input
+                            name="location"
+                            placeholder="Location"
+                            className="input text-lg py-3"
+                          />
                         </div>
-                        <button type="submit" className="btn-green text-lg px-6 py-3">
+
+                        {/* ⭐ NEW: Add-part image upload + preview */}
+                        <div className="flex items-center gap-4">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleAddImageChange}
+                            className="text-sm"
+                          />
+                          {addImagePreview && (
+                            <img
+                              src={addImagePreview}
+                              alt="Preview"
+                              className="h-16 w-16 object-cover border rounded"
+                            />
+                          )}
+                        </div>
+
+                        <button
+                          type="submit"
+                          className="btn-green text-lg px-6 py-3"
+                        >
                           Add Part
                         </button>
                       </form>
@@ -594,48 +772,66 @@ function App() {
 
                   {/* === Search Form === */}
                   <form
-                    onSubmit={e => {
+                    onSubmit={(e) => {
                       e.preventDefault();
                       if (page !== 1) setPage(1);
                       else handleSearch();
                     }}
                     className="flex flex-col md:flex-row gap-4 mb-6"
                   >
-                    {/* 🔥 NEW: wrapper for suggestions positioning */}
                     <div className="relative w-full" ref={inputWrapperRef}>
                       <input
                         className="input w-full text-lg py-3"
                         placeholder={`Search by ${type}`}
                         value={query}
-                        onChange={e => { setQuery(e.target.value); setShowSuggestions(true); }}
+                        onChange={(e) => {
+                          setQuery(e.target.value);
+                          setShowSuggestions(true);
+                        }}
                         onKeyDown={onQueryKeyDown}
-                        onFocus={() => { if (type === 'number' && suggestions.length) setShowSuggestions(true); }}
+                        onFocus={() => {
+                          if (type === "number" && suggestions.length)
+                            setShowSuggestions(true);
+                        }}
                       />
-                      {/* 🔥 NEW: suggestions dropdown */}
-                      {type === 'number' && showSuggestions && suggestions.length > 0 && (
-                        <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-auto">
-                          {suggestions.map((s, idx) => (
-                            <li
-                              key={s.id}
-                              onMouseDown={(e) => { e.preventDefault(); }} // prevent input blur
-                              onClick={() => pickSuggestion(s)}
-                              className={`px-3 py-2 cursor-pointer ${idx === highlightIndex ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
-                            >
-                              <div className="flex justify-between">
-                                <span className="font-semibold text-gray-800">{s.part_number}</span>
-                                <span className="text-gray-500">{s.location}</span>
-                              </div>
-                              <div className="text-sm text-gray-600">{s.name}</div>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
+                      {type === "number" &&
+                        showSuggestions &&
+                        suggestions.length > 0 && (
+                          <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-64 overflow-auto">
+                            {suggestions.map((s, idx) => (
+                              <li
+                                key={s.id}
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                }}
+                                onClick={() => pickSuggestion(s)}
+                                className={`px-3 py-2 cursor-pointer ${
+                                  idx === highlightIndex
+                                    ? "bg-blue-100"
+                                    : "hover:bg-gray-100"
+                                }`}
+                              >
+                                <div className="flex justify-between">
+                                  <span className="font-semibold text-gray-800">
+                                    {s.part_number}
+                                  </span>
+                                  <span className="text-gray-500">
+                                    {s.location}
+                                  </span>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  {s.name}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                     </div>
 
                     <select
                       className="input text-lg py-3"
                       value={type}
-                      onChange={e => {
+                      onChange={(e) => {
                         setType(e.target.value);
                         setShowSuggestions(false);
                         setSuggestions([]);
@@ -646,7 +842,9 @@ function App() {
                     </select>
                     <button
                       type="submit"
-                      onClick={() => { if (page === 1) handleSearch(); }}
+                      onClick={() => {
+                        if (page === 1) handleSearch();
+                      }}
                       className="btn-blue text-lg px-6 py-3"
                     >
                       Search
@@ -667,11 +865,15 @@ function App() {
                         🔍 Search Results
                       </h2>
                       <ul className="space-y-3 animate-fade-in">
-                        {results.map(part => (
+                        {results.map((part) => (
                           <li
                             key={part.id}
                             className="border border-gray-200 p-4 rounded-xl bg-blue-50 shadow-sm hover:shadow-md transition cursor-pointer"
-                            onClick={editingId === part.id ? undefined : () => setSelectedPart(part)}
+                            onClick={
+                              editingId === part.id
+                                ? undefined
+                                : () => setSelectedPart(part)
+                            }
                           >
                             {editingId === part.id ? (
                               <div className="space-y-2">
@@ -695,15 +897,42 @@ function App() {
                                     className="input text-lg py-3"
                                   />
                                 </div>
+
+                                {/* ⭐ NEW: Edit image upload + preview */}
+                                <div className="mt-2 flex items-center gap-4">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={handleEditImageChange}
+                                    className="text-sm"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  {(editImagePreview || part.image_url) && (
+                                    <img
+                                      src={editImagePreview || part.image_url}
+                                      alt={part.name}
+                                      className="h-16 w-16 object-cover border rounded"
+                                    />
+                                  )}
+                                </div>
+
                                 <div className="flex space-x-2">
                                   <button
-                                    onClick={() => handleEditSave(part.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleEditSave(part.id);
+                                    }}
                                     className="btn-green text-lg px-6 py-3"
                                   >
                                     Save
                                   </button>
                                   <button
-                                    onClick={() => setEditingId(null)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingId(null);
+                                      setEditImageFile(null);
+                                      setEditImagePreview("");
+                                    }}
                                     className="btn-gray text-lg px-6 py-3"
                                   >
                                     Cancel
@@ -712,21 +941,46 @@ function App() {
                               </div>
                             ) : (
                               <>
-                                <div className="grid grid-cols-3 gap-4">
-                                  <span className="text-gray-800 font-semibold">{part.name}</span>
-                                  <span className="text-gray-700">{part.part_number}</span>
-                                  <span className="text-gray-700">{part.location}</span>
+                                <div className="flex items-center gap-4">
+                                  {part.image_url && (
+                                    <img
+                                      src={part.image_url}
+                                      alt={part.name}
+                                      className="h-16 w-16 object-cover border rounded"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedPart(part);
+                                      }}
+                                    />
+                                  )}
+                                  <div className="flex-1 grid grid-cols-3 gap-4">
+                                    <span className="text-gray-800 font-semibold">
+                                      {part.name}
+                                    </span>
+                                    <span className="text-gray-700">
+                                      {part.part_number}
+                                    </span>
+                                    <span className="text-gray-700">
+                                      {part.location}
+                                    </span>
+                                  </div>
                                 </div>
                                 {isAuthorized && (
                                   <div className="mt-2 flex space-x-3">
                                     <button
-                                      onClick={e => { e.stopPropagation(); handleEdit(part); }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEdit(part);
+                                      }}
                                       className="px-5 py-3 bg-yellow-300 hover:bg-yellow-400 text-gray-800 rounded text-lg"
                                     >
                                       Edit
                                     </button>
                                     <button
-                                      onClick={e => { e.stopPropagation(); handleDelete(part.id); }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDelete(part.id);
+                                      }}
                                       className="px-5 py-3 bg-red-500 hover:bg-red-600 text-white rounded text-lg"
                                     >
                                       Delete
@@ -743,16 +997,30 @@ function App() {
                       <div className="flex justify-between items-center mt-4">
                         <button
                           disabled={page === 1}
-                          onClick={() => setPage(prev => Math.max(1, prev - 1))}
-                          className={`px-5 py-3 rounded text-lg ${page === 1 ? 'bg-gray-300' : 'bg-blue-500 text-white'}`}
+                          onClick={() =>
+                            setPage((prev) => Math.max(1, prev - 1))
+                          }
+                          className={`px-5 py-3 rounded text-lg ${
+                            page === 1
+                              ? "bg-gray-300"
+                              : "bg-blue-500 text-white"
+                          }`}
                         >
                           Previous
                         </button>
-                        <span className="text-gray-700">Page {page} of {totalPages}</span>
+                        <span className="text-gray-700">
+                          Page {page} of {totalPages}
+                        </span>
                         <button
                           disabled={page >= totalPages}
-                          onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-                          className={`px-5 py-3 rounded text-lg ${page >= totalPages ? 'bg-gray-300' : 'bg-blue-500 text-white'}`}
+                          onClick={() =>
+                            setPage((prev) => Math.min(totalPages, prev + 1))
+                          }
+                          className={`px-5 py-3 rounded text-lg ${
+                            page >= totalPages
+                              ? "bg-gray-300"
+                              : "bg-blue-500 text-white"
+                          }`}
                         >
                           Next
                         </button>
@@ -780,12 +1048,18 @@ function App() {
             <p className="mb-4">{confirmMessage}</p>
             <div className="flex justify-end space-x-4">
               <button
-                onClick={() => { confirmCallback(); setConfirmOpen(false); }}
+                onClick={() => {
+                  confirmCallback();
+                  setConfirmOpen(false);
+                }}
                 className="btn-red text-lg px-6 py-3"
               >
                 Yes
               </button>
-              <button onClick={() => setConfirmOpen(false)} className="btn-gray text-lg px-6 py-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="btn-gray text-lg px-6 py-3"
+              >
                 No
               </button>
             </div>
