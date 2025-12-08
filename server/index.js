@@ -116,6 +116,16 @@ app.post("/parts", async (req, res) => {
     console.log("❌ Missing required fields");
     return res.status(400).json({ error: "All fields are required" });
   }
+
+  //Build insert object safely: only send image_url if provided
+  const insertObj = { name, part_number, location };
+
+  if (image_url) {
+    insertObj.image_url = image_url;
+  }
+
+  console.log("➡️ Inserting part:", insertObj);
+
   try {
     const { data, error } = await supabase
       .from("parts")
@@ -204,7 +214,7 @@ app.get("/parts/suggest", async (req, res) => {
   }
 });
 
-// ⭐ ADD: Image upload endpoint
+// ⭐ ADD/REPLACE: Image upload endpoint
 // POST /upload-image  (multipart/form-data, field name: "file")
 app.post("/upload-image", upload.single("file"), async (req, res) => {
   try {
@@ -213,6 +223,12 @@ app.post("/upload-image", upload.single("file"), async (req, res) => {
     }
 
     const file = req.file;
+    console.log(
+      " /upload-image received file:",
+      file.originalname,
+      file.mimetype,
+      file.size
+    );
     const ext = path.extname(file.originalname) || "";
     const fileName = `${Date.now()}-${Math.random()
       .toString(36)

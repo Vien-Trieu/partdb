@@ -717,7 +717,11 @@ function App() {
                             setAddImagePreview(""); // ⭐ NEW
                           } catch (error) {
                             console.error("Error adding part:", error);
-                            alert("Failed to add part.");
+                            alert(
+                              `Failed to add part. ${
+                                error.message || "Unknown error."
+                              }`
+                            );
                           }
                         }}
                         className="mb-8 space-y-4"
