@@ -256,8 +256,7 @@ function App() {
       skipNextSearchRef.current = false;
       return;
     }
-    if (page !== 1) setPage(1);
-    else handleSearch();
+    handleSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, page]);
 

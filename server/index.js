@@ -37,6 +37,50 @@ const upload = multer({
 /* === Server Port ======================================================== */
 const PORT = process.env.PORT || 3001;
 
+// === Helper: derive storage path from public URL & delete from bucket =======
+function extractStoragePathFromPublicUrl(imageUrl) {
+  try {
+    const u = new URL(imageUrl);
+    // Example pathname:
+    // /storage/v1/object/public/part-images/parts/123-file.png
+    const marker = "/storage/v1/object/public/part-images/";
+    const idx = u.pathname.indexOf(marker);
+    if (idx === -1) {
+      console.warn("⚠️ Could not find expected marker in image URL:", imageUrl);
+      return null;
+    }
+    const storagePath = u.pathname.slice(idx + marker.length); // e.g. "parts/123-file.png"
+    return storagePath;
+  } catch (e) {
+    console.warn("⚠️ Failed to parse image URL:", imageUrl, e);
+    return null;
+  }
+}
+
+async function deleteImageFromStorage(imageUrl) {
+  if (!imageUrl) return;
+
+  const storagePath = extractStoragePathFromPublicUrl(imageUrl);
+  if (!storagePath) {
+    console.warn(
+      "⚠️ No storage path derived from URL, skipping delete:",
+      imageUrl
+    );
+    return;
+  }
+
+  console.log("🧹 Deleting image from storage:", storagePath);
+  const { error } = await supabase.storage
+    .from("part-images")
+    .remove([storagePath]);
+
+  if (error) {
+    console.error("⚠️ Failed to delete image from storage:", error);
+  } else {
+    console.log("✅ Image deleted from storage:", storagePath);
+  }
+}
+
 /* === Routes: Health Check =============================================== */
 // Health check endpoint to verify Supabase connectivity
 app.get("/test-supabase", async (req, res) => {
@@ -166,15 +210,17 @@ app.put("/parts/:id", async (req, res) => {
   res.json(data[0]);
 });
 
-// Delete a part
+// Delete a part (and its image if present)
 app.delete("/parts/:id", async (req, res) => {
   const { id } = req.params;
   console.log("➡️ Deleting ID:", id);
+
   const { data, error } = await supabase
     .from("parts")
     .delete()
     .eq("id", id)
     .select();
+
   if (error) {
     console.error("❌ Error deleting part:", error);
     return res.status(500).json({ error: "Server error" });
@@ -182,6 +228,16 @@ app.delete("/parts/:id", async (req, res) => {
   if (!data || data.length === 0) {
     return res.status(404).json({ error: "Part not found" });
   }
+
+  const deleted = data[0];
+
+  // 🧹 Try to delete image from storage, but don't fail the request if this fails
+  if (deleted && deleted.image_url) {
+    deleteImageFromStorage(deleted.image_url).catch((e) => {
+      console.error("⚠️ Failed to delete image from storage (non-fatal):", e);
+    });
+  }
+
   return res.sendStatus(204);
 });
 
@@ -236,7 +292,7 @@ app.post("/upload-image", upload.single("file"), async (req, res) => {
     const storagePath = `parts/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
-      .from("part-images") // your bucket name
+      .from("part-images") // supabase bucket name
       .upload(storagePath, file.buffer, {
         contentType: file.mimetype,
         upsert: true,
