@@ -160,7 +160,7 @@ Confirm bucket name: part-images
 
 Check backend logs for Supabase errors
 ```
-```##📄 License – ABB Internal Use Only
+```#📄 License – ABB Internal Use Only
 
 Copyright © 2025 ABB.
 All rights reserved.
@@ -186,7 +186,7 @@ I also formatted the license summary in a **clean professional block** that rese
 
 ---
 
-### **📄 ABB INTERNAL LICENSE NOTICE (Professional Formatting)**
+## **📄 ABB INTERNAL LICENSE NOTICE (Professional Formatting)**
 
 
 
