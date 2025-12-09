@@ -186,7 +186,7 @@ I also formatted the license summary in a **clean professional block** that rese
 
 ---
 
-## **📄 ABB INTERNAL LICENSE NOTICE (Professional Formatting)**
+ **📄 ABB INTERNAL LICENSE NOTICE (Professional Formatting)**
 
 
 
