@@ -177,19 +177,6 @@ All copies and derivative works must retain this notice.
 
 This is not an open-source license.
 
-
----
-
-# ✅ **2. ABB-Branded, Black-Bar Header Style You Requested**
-
-I also formatted the license summary in a **clean professional block** that resembles internal documentation:
-
----
-
- **📄 ABB INTERNAL LICENSE NOTICE (Professional Formatting)**
-
-
-
 ────────────────────────────────────────────────────────────
 ABB – INTERNAL USE ONLY – CONFIDENTIAL SOFTWARE
 ────────────────────────────────────────────────────────────
