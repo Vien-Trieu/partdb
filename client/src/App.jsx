@@ -1,4 +1,13 @@
 /*
+/*
+  Copyright © 2025 Vien Trieu  
+  This software is proprietary to ABB and may be viewed internally
+  but may not be copied, distributed, used, or modified outside ABB
+  without explicit written permission.
+
+  Full license details can be found in LICENSE.md.
+
+/*
 Author: Vien Trieu (Date: 6-27-2025)
 This file is the main file for the entire app. It holds everything that makes the app
 work correctly and smoothly.
@@ -97,6 +106,9 @@ function App() {
   const [confirmCallback, setConfirmCallback] = useState(() => {});
   const [notification, setNotification] = useState("");
   const [lastError, setLastError] = useState("");
+
+  /* === Global popup message (replaces alert) === */
+  const [popupMessage, setPopupMessage] = useState("");
 
   /* === Activity log === */
   const [logs, setLogs] = useState(() => {
@@ -309,7 +321,7 @@ function App() {
       setTimeout(() => setNotification(""), 3000);
     } catch (error) {
       console.error("Error deleting part:", error);
-      alert("Failed to delete part.");
+      setPopupMessage("Failed to delete part.");
     }
   };
 
@@ -366,7 +378,7 @@ function App() {
   const handleEditSave = async (id) => {
     const { name, part_number, location } = editValues;
     if (!name.trim() || !part_number.trim() || !location.trim()) {
-      alert("Please fill in all fields before saving.");
+      setPopupMessage("You must complete every field before saving changes.");
       return;
     }
     try {
@@ -397,7 +409,7 @@ function App() {
       setEditImagePreview("");
     } catch (error) {
       console.error("Error updating part:", error);
-      alert("Failed to update part.");
+      setPopupMessage("Failed to update part.");
     }
   };
 
@@ -417,8 +429,9 @@ function App() {
   /** Submit logs PIN */
   const submitLogPin = (e) => {
     e.preventDefault();
+
     if (!/^\d+$/.test(logPin)) {
-      alert("PIN must be numeric");
+      setPopupMessage("PIN must be numeric.");
       setLogPin("");
       return;
     }
@@ -428,7 +441,7 @@ function App() {
       setLogPin("");
       setViewMode("logs");
     } else {
-      alert("Incorrect PIN for logs");
+      setPopupMessage("Incorrect PIN for logs.");
       setLogPin("");
     }
   };
@@ -607,8 +620,9 @@ function App() {
                         <form
                           onSubmit={(e) => {
                             e.preventDefault();
+
                             if (!/^\d+$/.test(pin)) {
-                              alert("PIN must be numeric");
+                              setPopupMessage("PIN must be numeric.");
                               setPin("");
                               return;
                             }
@@ -617,7 +631,7 @@ function App() {
                               setPin("");
                               setShowPinPrompt(false);
                             } else {
-                              alert("Incorrect PIN");
+                              setPopupMessage("Incorrect PIN.");
                               setPin("");
                             }
                           }}
@@ -686,11 +700,14 @@ function App() {
                       <form
                         onSubmit={async (e) => {
                           e.preventDefault();
+
                           const name = e.target.name.value.trim();
                           const part_number = e.target.part_number.value.trim();
                           const location = e.target.location.value.trim();
                           if (!name || !part_number || !location) {
-                            alert("Please fill in all fields.");
+                            setPopupMessage(
+                              "You must complete every field before adding a part."
+                            );
                             return;
                           }
                           try {
@@ -716,7 +733,7 @@ function App() {
                             setAddImagePreview(""); // ⭐ NEW
                           } catch (error) {
                             console.error("Error adding part:", error);
-                            alert(
+                            setPopupMessage(
                               `Failed to add part. ${
                                 error.message || "Unknown error."
                               }`
@@ -1064,6 +1081,23 @@ function App() {
                 className="btn-gray text-lg px-6 py-3"
               >
                 No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Simple popup modal (for validation / PIN / error messages) */}
+      {popupMessage && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-70">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-[92%]">
+            <p className="mb-4">{popupMessage}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setPopupMessage("")}
+                className="btn-blue text-lg px-6 py-3"
+              >
+                OK
               </button>
             </div>
           </div>
