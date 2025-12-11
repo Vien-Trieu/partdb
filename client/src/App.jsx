@@ -1,5 +1,4 @@
 /*
-/*
   Copyright © 2025 Vien Trieu  
   This software is proprietary to ABB and may be viewed internally
   but may not be copied, distributed, used, or modified outside ABB
@@ -7,7 +6,7 @@
 
   Full license details can be found in LICENSE.md.
 
-/*
+
 Author: Vien Trieu (Date: 6-27-2025)
 This file is the main file for the entire app. It holds everything that makes the app
 work correctly and smoothly.
@@ -121,6 +120,10 @@ function App() {
   const [logPinPrompt, setLogPinPrompt] = useState(false);
   const [logPin, setLogPin] = useState("");
   const [logsAuthorized, setLogsAuthorized] = useState(false);
+
+  /* === Activity log pagination === */
+  const [logPage, setLogPage] = useState(1);
+  const LOGS_PER_PAGE = 10;
 
   /* === View mode (main or logs) === */
   const [viewMode, setViewMode] = useState("main");
@@ -311,13 +314,16 @@ function App() {
   }, []);
 
   /** Delete part and refresh results */
-  const performDelete = async (id) => {
+  const performDelete = async (part) => {
+    const { id, name, part_number, location } = part;
     try {
       await fetchJSON(`/parts/${id}`, { method: "DELETE" });
       if (query) await handleSearch();
       else setResults((prev) => prev.filter((p) => p.id !== id));
       setNotification("Part deleted successfully!");
-      addLog(`Deleted part #${id}`);
+      addLog(
+        `Deleted part "${name}" (Part #${part_number}, Location: ${location})`
+      );
       setTimeout(() => setNotification(""), 3000);
     } catch (error) {
       console.error("Error deleting part:", error);
@@ -326,9 +332,11 @@ function App() {
   };
 
   /** Open confirmation dialog */
-  const handleDelete = (id) => {
-    setConfirmMessage("Are you sure you want to delete this part?");
-    setConfirmCallback(() => () => performDelete(id));
+  const handleDelete = (part) => {
+    setConfirmMessage(
+      `Are you sure you want to delete "${part.name}" (Part #${part.part_number})?`
+    );
+    setConfirmCallback(() => () => performDelete(part));
     setConfirmOpen(true);
   };
 
@@ -403,7 +411,9 @@ function App() {
       if (updated) {
         setResults((prev) => prev.map((p) => (p.id === id ? updated : p)));
       }
-      addLog(`Edited part #${id}`);
+      addLog(
+        `Edited part "${payload.name}" (Part #${payload.part_number}, Location: ${payload.location})`
+      );
       setEditingId(null);
       setEditImageFile(null);
       setEditImagePreview("");
@@ -415,10 +425,20 @@ function App() {
 
   /** Append an entry to the activity log and persist */
   const addLog = (action) => {
-    const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+    const now = new Date();
+    const timestamp = now.toLocaleString(undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+
     const entry = { id: Date.now(), action, timestamp };
     setLogs((prev) => {
-      const updated = [...prev, entry];
+      // newest first
+      const updated = [entry, ...prev];
       try {
         localStorage.setItem("activityLogs", JSON.stringify(updated));
       } catch {}
@@ -440,6 +460,7 @@ function App() {
       setLogPinPrompt(false);
       setLogPin("");
       setViewMode("logs");
+      setLogPage(1);
     } else {
       setPopupMessage("Incorrect PIN for logs.");
       setLogPin("");
@@ -490,6 +511,15 @@ function App() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
+  /* === Derived pagination for logs === */
+  const totalLogPages = Math.max(
+    1,
+    Math.ceil(logs.length / LOGS_PER_PAGE || 1)
+  );
+  const currentLogPage = Math.min(logPage, totalLogPages);
+  const logStartIndex = (currentLogPage - 1) * LOGS_PER_PAGE;
+  const pageLogs = logs.slice(logStartIndex, logStartIndex + LOGS_PER_PAGE);
+
   return (
     <>
       {/* Splash screen overlay */}
@@ -511,6 +541,7 @@ function App() {
                 onClick={() => {
                   setViewMode("main");
                   setLogsAuthorized(false);
+                  setLogPage(1);
                 }}
                 className="mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded text-lg"
               >
@@ -520,14 +551,51 @@ function App() {
               {logs.length === 0 ? (
                 <p>No actions logged yet.</p>
               ) : (
-                <ul className="list-disc pl-5 space-y-1">
-                  {logs.map((log) => (
-                    <li key={log.id}>
-                      <span className="font-mono">{log.timestamp}</span> —{" "}
-                      {log.action}
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <ul className="list-disc pl-5 space-y-1 mb-4">
+                    {pageLogs.map((log) => (
+                      <li key={log.id}>
+                        <span className="font-mono">{log.timestamp}</span> —{" "}
+                        {log.action}
+                      </li>
+                    ))}
+                  </ul>
+                  {totalLogPages > 1 && (
+                    <div className="flex justify-between items-center mt-2">
+                      <button
+                        disabled={currentLogPage === 1}
+                        onClick={() =>
+                          setLogPage((prev) => Math.max(1, prev - 1))
+                        }
+                        className={`px-4 py-2 rounded text-lg ${
+                          currentLogPage === 1
+                            ? "bg-gray-300"
+                            : "bg-blue-500 text-white"
+                        }`}
+                      >
+                        Previous
+                      </button>
+                      <span className="text-gray-700">
+                        Page {currentLogPage} of {totalLogPages}
+                      </span>
+                      <button
+                        disabled={currentLogPage >= totalLogPages}
+                        onClick={() =>
+                          setLogPage((prev) =>
+                            Math.min(totalLogPages, prev + 1)
+                          )
+                        }
+                        className={`px-4 py-2 rounded text-lg ${
+                          currentLogPage >= totalLogPages
+                            ? "bg-gray-300"
+                            : "bg-blue-500 text-white"
+                        }`}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -728,6 +796,9 @@ function App() {
                               body: JSON.stringify(body),
                             });
                             setResults((prev) => [newPart, ...prev]);
+                            addLog(
+                              `Added part "${newPart.name}" (Part #${newPart.part_number}, Location: ${newPart.location})`
+                            );
                             e.target.reset();
                             setAddImageFile(null); // ⭐ NEW
                             setAddImagePreview(""); // ⭐ NEW
@@ -999,7 +1070,7 @@ function App() {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDelete(part.id);
+                                        handleDelete(part);
                                       }}
                                       className="px-5 py-3 bg-red-500 hover:bg-red-600 text-white rounded text-lg"
                                     >
