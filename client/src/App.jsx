@@ -7,6 +7,7 @@
   Full license details can be found in LICENSE.md.
 
 
+/*
 Author: Vien Trieu (Date: 6-27-2025)
 This file is the main file for the entire app. It holds everything that makes the app
 work correctly and smoothly.
@@ -93,7 +94,7 @@ function App() {
   const [showPinPrompt, setShowPinPrompt] = useState(false);
   const [pin, setPin] = useState("");
 
-  /* === Pagination === */
+  /* === Pagination (search results) === */
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const limit = 5;
@@ -128,9 +129,8 @@ function App() {
   /* === View mode (main or logs) === */
   const [viewMode, setViewMode] = useState("main");
 
-  // Remember last successful search params for auto-refresh on visibility/focus
+  // Remember last successful search params
   const lastSearchRef = useRef({ query: "", type: "name", page: 1 });
-
   const skipNextSearchRef = useRef(false);
 
   /* === 🔥 NEW: Suggestions state (for part number type-ahead) === */
@@ -166,7 +166,7 @@ function App() {
   };
 
   /** Execute a search based on current query/type/page */
-  const handleSearch = async () => {
+  const handleSearch = async ({ suppressLog = false } = {}) => {
     if (!query.trim()) {
       setResults([]);
       setLastError("");
@@ -189,9 +189,11 @@ function App() {
         setResults([]);
         setTotalPages(1);
       }
-      addLog(
-        `Searched parts by "${type}" with query "${query}" (page ${page})`
-      );
+      if (!suppressLog) {
+        addLog(
+          `Searched parts by "${type}" with query "${query}" (page ${page})`
+        );
+      }
       // Save last successful search
       lastSearchRef.current = { query, type, page };
       try {
@@ -275,26 +277,6 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, page]);
 
-  /** Auto-refresh last search after long idle / tab focus */
-  useEffect(() => {
-    const onVisible = async () => {
-      if (document.visibilityState === "visible") {
-        const { query: q } = lastSearchRef.current;
-        if (q && q.trim()) {
-          try {
-            await handleSearch();
-          } catch {}
-        }
-      }
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
-    };
-  }, []);
-
   /** Restore last search from localStorage on mount (optional persistence) */
   useEffect(() => {
     try {
@@ -312,6 +294,24 @@ function App() {
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** Periodic auto-refresh of the last successful search while app is idle/visible */
+  useEffect(() => {
+    const REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+    const id = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      const { query: lastQuery } = lastSearchRef.current;
+      if (!lastQuery || !lastQuery.trim()) return;
+      if (viewMode !== "main") return;
+      if (isLoading) return;
+      // Silent refresh: do not spam logs
+      handleSearch({ suppressLog: true });
+    }, REFRESH_INTERVAL_MS);
+
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, isLoading]);
 
   /** Delete part and refresh results */
   const performDelete = async (part) => {
@@ -621,7 +621,7 @@ function App() {
                 <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded flex justify-between items-center">
                   <span>{lastError}</span>
                   <button
-                    onClick={handleSearch}
+                    onClick={() => handleSearch()}
                     className="ml-4 btn-blue text-lg px-4 py-2"
                   >
                     Retry
