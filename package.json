@@ -5,7 +5,8 @@
   "scripts": {
     "build-client": "cd client && npm install && npm run build",
     "build-backend": "pkg server/index.js --target node18-win-x64 --output build/partdb-backend.exe",
-    "build": "npm run build-client && npm run build-backend && electron-builder"
+    "build": "npm run build-client && npm run build-backend && electron-builder",
+    "build:portable": "npm run build-client && npm run build-backend && electron-builder --win portable --x64"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.52.1",

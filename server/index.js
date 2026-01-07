@@ -12,13 +12,12 @@ const supabase = require("./db");
 const multer = require("multer");
 
 /* === Environment Configuration ========================================= */
-console.log("✅ Manually setting .env values");
-SUPABASE_URL = "https://usgdhmzuqkfuauytbwdw.supabase.co";
-SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
-// require('dotenv').config({
-//   path: path.join(__dirname, 'env.production')
-// });
+console.log("ENV CHECK:", {
+  hasUrl: !!process.env.SUPABASE_URL,
+  hasAnon: !!process.env.SUPABASE_ANON_KEY,
+  urlPreview: (process.env.SUPABASE_URL || "").slice(0, 28),
+  anonPreview: (process.env.SUPABASE_ANON_KEY || "").slice(0, 12),
+});
 
 // Optional: uncomment if you get TLS certificate errors during development
 // process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = 0;
@@ -28,10 +27,21 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+app.use((req, res, next) => {
+  if (req.path === "/upload-image") {
+    console.log("➡️ HIT /upload-image", {
+      method: req.method,
+      contentType: req.headers["content-type"],
+      contentLength: req.headers["content-length"],
+    });
+  }
+  next();
+});
+
 // ⭐ ADD: Multer upload middleware (in-memory)
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB max
 });
 
 /* === Server Port ======================================================== */
@@ -280,11 +290,12 @@ app.post("/upload-image", upload.single("file"), async (req, res) => {
 
     const file = req.file;
     console.log(
-      " /upload-image received file:",
+      "/upload-image received file:",
       file.originalname,
       file.mimetype,
       file.size
     );
+
     const ext = path.extname(file.originalname) || "";
     const fileName = `${Date.now()}-${Math.random()
       .toString(36)
@@ -292,17 +303,24 @@ app.post("/upload-image", upload.single("file"), async (req, res) => {
     const storagePath = `parts/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
-      .from("part-images") // supabase bucket name
+      .from("part-images")
       .upload(storagePath, file.buffer, {
         contentType: file.mimetype,
         upsert: true,
       });
 
     if (uploadError) {
-      console.error("❌ Supabase Storage upload error:", uploadError);
+      console.error("❌ Supabase Storage upload error:", {
+        message: uploadError.message,
+        status: uploadError.status,
+        name: uploadError.name,
+        cause: uploadError.cause,
+        full: uploadError,
+      });
       return res.status(500).json({
         error: "Failed to upload image",
         details: uploadError.message,
+        status: uploadError.status,
       });
     }
 
@@ -316,9 +334,10 @@ app.post("/upload-image", upload.single("file"), async (req, res) => {
     return res.json({ image_url });
   } catch (err) {
     console.error("🔥 Unexpected error in /upload-image:", err);
-    res
-      .status(500)
-      .json({ error: "Unexpected server error", details: err.message });
+    return res.status(500).json({
+      error: "Unexpected server error",
+      details: err.message,
+    });
   }
 });
 
