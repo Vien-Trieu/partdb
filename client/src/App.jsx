@@ -9,9 +9,9 @@
 
 /*
 Author: Vien Trieu (Date: 6-27-2025)
-This file is the main file for the entire app. It holds everything that makes the app
-work correctly and smoothly.
-DISCLAIMER: THIS FILE IS CONSTANTLY CHANGING PLEASE BE ADVISED!!!
+App.jsx is the central backbone of the application, responsible for initializing the app, managing global state,
+coordinating data flow, and rendering all primary UI components. It brings together frontend logic, backend communication,
+and user interactions to ensure the application runs reliably, efficiently, and as a unified experience.
 */
 
 import React, { useState, useEffect, useRef } from "react";
