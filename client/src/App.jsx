@@ -455,7 +455,7 @@ function App() {
       setLogPin("");
       return;
     }
-    if (logPin === "4321") {
+    if (logPin === "4872") {
       setLogsAuthorized(true);
       setLogPinPrompt(false);
       setLogPin("");
@@ -694,7 +694,7 @@ function App() {
                               setPin("");
                               return;
                             }
-                            if (pin === "1234") {
+                            if (pin === "9063") {
                               setIsAuthorized(true);
                               setPin("");
                               setShowPinPrompt(false);
