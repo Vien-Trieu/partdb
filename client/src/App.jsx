@@ -30,7 +30,7 @@ const API_BASE =
 async function fetchJSON(
   path,
   options = {},
-  { retries = 0, timeoutMs = 3000 } = {}
+  { retries = 0, timeoutMs = 3000 } = {},
 ) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
@@ -80,14 +80,14 @@ function App() {
     name: "",
     part_number: "",
     location: "",
-    image_url: "", // ⭐ NEW
+    image_url: "",
   });
 
   /* === Image state (Add + Edit) ======================================= */
-  const [addImageFile, setAddImageFile] = useState(null); // ⭐ NEW
-  const [addImagePreview, setAddImagePreview] = useState(""); // ⭐ NEW
-  const [editImageFile, setEditImageFile] = useState(null); // ⭐ NEW
-  const [editImagePreview, setEditImagePreview] = useState(""); // ⭐ NEW
+  const [addImageFile, setAddImageFile] = useState(null);
+  const [addImagePreview, setAddImagePreview] = useState("");
+  const [editImageFile, setEditImageFile] = useState(null);
+  const [editImagePreview, setEditImagePreview] = useState("");
 
   /* === Authorization for managing parts === */
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -133,13 +133,13 @@ function App() {
   const lastSearchRef = useRef({ query: "", type: "name", page: 1 });
   const skipNextSearchRef = useRef(false);
 
-  /* === 🔥 NEW: Suggestions state (for part number type-ahead) === */
+  /* === Suggestions state (for part number type-ahead) === */
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const suggestAbortRef = useRef(null);
 
-  /** ⭐ NEW: upload image helper (multipart/form-data) */
+  /** upload image helper (multipart/form-data) */
   const uploadImage = async (file) => {
     if (!file) return null;
 
@@ -191,7 +191,7 @@ function App() {
       }
       if (!suppressLog) {
         addLog(
-          `Searched parts by "${type}" with query "${query}" (page ${page})`
+          `Searched parts by "${type}" with query "${query}" (page ${page})`,
         );
       }
       // Save last successful search
@@ -199,7 +199,7 @@ function App() {
       try {
         localStorage.setItem(
           "lastSearch",
-          JSON.stringify(lastSearchRef.current)
+          JSON.stringify(lastSearchRef.current),
         );
       } catch {}
     } catch (error) {
@@ -210,7 +210,7 @@ function App() {
     }
   };
 
-  /** 🔥 NEW: Fetch suggestions for part numbers (prefix match) */
+  /** Fetch suggestions for part numbers (prefix match) */
   const fetchSuggestions = async (prefix) => {
     if (suggestAbortRef.current) {
       suggestAbortRef.current.abort();
@@ -322,7 +322,7 @@ function App() {
       else setResults((prev) => prev.filter((p) => p.id !== id));
       setNotification("Part deleted successfully!");
       addLog(
-        `Deleted part "${name}" (Part #${part_number}, Location: ${location})`
+        `Deleted part "${name}" (Part #${part_number}, Location: ${location})`,
       );
       setTimeout(() => setNotification(""), 3000);
     } catch (error) {
@@ -334,7 +334,7 @@ function App() {
   /** Open confirmation dialog */
   const handleDelete = (part) => {
     setConfirmMessage(
-      `Are you sure you want to delete "${part.name}" (Part #${part.part_number})?`
+      `Are you sure you want to delete "${part.name}" (Part #${part.part_number})?`,
     );
     setConfirmCallback(() => () => performDelete(part));
     setConfirmOpen(true);
@@ -358,7 +358,7 @@ function App() {
     setEditValues({ ...editValues, [e.target.name]: e.target.value });
   };
 
-  /** ⭐ NEW: Add-form image change */
+  /**  Add-form image change */
   const handleAddImageChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) {
@@ -370,7 +370,7 @@ function App() {
     setAddImagePreview(URL.createObjectURL(file));
   };
 
-  /** ⭐ NEW: Edit-form image change */
+  /**  Edit-form image change */
   const handleEditImageChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) {
@@ -412,7 +412,7 @@ function App() {
         setResults((prev) => prev.map((p) => (p.id === id ? updated : p)));
       }
       addLog(
-        `Edited part "${payload.name}" (Part #${payload.part_number}, Location: ${payload.location})`
+        `Edited part "${payload.name}" (Part #${payload.part_number}, Location: ${payload.location})`,
       );
       setEditingId(null);
       setEditImageFile(null);
@@ -467,7 +467,7 @@ function App() {
     }
   };
 
-  /** 🔥 NEW: when user picks a suggestion */
+  /** when user picks a suggestion */
   const pickSuggestion = (s) => {
     setQuery(s.part_number);
     setShowSuggestions(false);
@@ -476,7 +476,7 @@ function App() {
     else handleSearch();
   };
 
-  /** 🔥 NEW: keyboard handling on input */
+  /** keyboard handling on input */
   const onQueryKeyDown = (e) => {
     if (!showSuggestions || suggestions.length === 0) return;
 
@@ -486,7 +486,7 @@ function App() {
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlightIndex(
-        (i) => (i - 1 + suggestions.length) % suggestions.length
+        (i) => (i - 1 + suggestions.length) % suggestions.length,
       );
     } else if (e.key === "Enter") {
       if (highlightIndex >= 0 && highlightIndex < suggestions.length) {
@@ -514,7 +514,7 @@ function App() {
   /* === Derived pagination for logs === */
   const totalLogPages = Math.max(
     1,
-    Math.ceil(logs.length / LOGS_PER_PAGE || 1)
+    Math.ceil(logs.length / LOGS_PER_PAGE || 1),
   );
   const currentLogPage = Math.min(logPage, totalLogPages);
   const logStartIndex = (currentLogPage - 1) * LOGS_PER_PAGE;
@@ -582,7 +582,7 @@ function App() {
                         disabled={currentLogPage >= totalLogPages}
                         onClick={() =>
                           setLogPage((prev) =>
-                            Math.min(totalLogPages, prev + 1)
+                            Math.min(totalLogPages, prev + 1),
                           )
                         }
                         className={`px-4 py-2 rounded text-lg ${
@@ -639,7 +639,7 @@ function App() {
                     ← Back to Results
                   </button>
                   <div className="space-y-4">
-                    {selectedPart.image_url /* ⭐ NEW: big image */ && (
+                    {selectedPart.image_url /* big image */ && (
                       <img
                         src={selectedPart.image_url}
                         alt={selectedPart.name}
@@ -774,14 +774,14 @@ function App() {
                           const location = e.target.location.value.trim();
                           if (!name || !part_number || !location) {
                             setPopupMessage(
-                              "You must complete every field before adding a part."
+                              "You must complete every field before adding a part.",
                             );
                             return;
                           }
                           try {
                             let image_url = null;
                             if (addImageFile) {
-                              image_url = await uploadImage(addImageFile); // ⭐ NEW
+                              image_url = await uploadImage(addImageFile);
                             }
 
                             const body = {
@@ -797,17 +797,17 @@ function App() {
                             });
                             setResults((prev) => [newPart, ...prev]);
                             addLog(
-                              `Added part "${newPart.name}" (Part #${newPart.part_number}, Location: ${newPart.location})`
+                              `Added part "${newPart.name}" (Part #${newPart.part_number}, Location: ${newPart.location})`,
                             );
                             e.target.reset();
-                            setAddImageFile(null); // ⭐ NEW
-                            setAddImagePreview(""); // ⭐ NEW
+                            setAddImageFile(null);
+                            setAddImagePreview("");
                           } catch (error) {
                             console.error("Error adding part:", error);
                             setPopupMessage(
                               `Failed to add part. ${
                                 error.message || "Unknown error."
-                              }`
+                              }`,
                             );
                           }
                         }}
@@ -834,7 +834,7 @@ function App() {
                           />
                         </div>
 
-                        {/* ⭐ NEW: Add-part image upload + preview */}
+                        {/* Add-part image upload + preview */}
                         <div className="flex items-center gap-4">
                           <input
                             type="file"
@@ -989,7 +989,7 @@ function App() {
                                   />
                                 </div>
 
-                                {/* ⭐ NEW: Edit image upload + preview */}
+                                {/* Edit image upload + preview */}
                                 <div className="mt-2 flex items-center gap-4">
                                   <input
                                     type="file"
