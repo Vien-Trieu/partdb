@@ -35,7 +35,7 @@ function startBackend() {
   const backendProcess = spawn(backendExe, [], {
     cwd: path.dirname(backendExe),
     stdio: "inherit",
-    windowsHide: true,
+    windowsHide: true, // Hiding the console window on Windows
     env: { ...process.env, PORT: "3001" },
   });
 
