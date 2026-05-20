@@ -74,7 +74,7 @@ async function deleteImageFromStorage(imageUrl) {
   if (!storagePath) {
     console.warn(
       "⚠️ No storage path derived from URL, skipping delete:",
-      imageUrl
+      imageUrl,
     );
     return;
   }
@@ -293,7 +293,7 @@ app.post("/upload-image", upload.single("file"), async (req, res) => {
       "/upload-image received file:",
       file.originalname,
       file.mimetype,
-      file.size
+      file.size,
     );
 
     const ext = path.extname(file.originalname) || "";
@@ -358,6 +358,26 @@ app.get("/debug-connection", async (req, res) => {
     res
       .status(500)
       .json({ error: "Supabase fetch failed", details: err.message });
+  }
+});
+
+app.post("/verify-log-pin", (req, res) => {
+  const { pin } = req.body;
+  console.log("Entered PIN:", pin);
+  console.log("ENV LOG_PIN:", process.env.LOG_PIN);
+  if (pin === process.env.LOG_PIN) {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ success: false, error: "Invalid PIN" });
+  }
+});
+
+app.post("/verify-admin-pin", (req, res) => {
+  const { pin } = req.body;
+  if (pin === process.env.ADMIN_PIN) {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ success: false, error: "Invalid PIN" });
   }
 });
 

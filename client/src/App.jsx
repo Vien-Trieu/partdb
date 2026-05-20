@@ -347,10 +347,10 @@ function App() {
       name: part.name,
       part_number: part.part_number,
       location: part.location,
-      image_url: part.image_url || "", // ⭐ NEW
+      image_url: part.image_url || "",
     });
     setEditImageFile(null); // ⭐ NEW
-    setEditImagePreview(part.image_url || ""); // ⭐ NEW
+    setEditImagePreview(part.image_url || "");
   };
 
   /** Edit inputs change */
@@ -447,7 +447,7 @@ function App() {
   };
 
   /** Submit logs PIN */
-  const submitLogPin = (e) => {
+  const submitLogPin = async (e) => {
     e.preventDefault();
 
     if (!/^\d+$/.test(logPin)) {
@@ -455,14 +455,24 @@ function App() {
       setLogPin("");
       return;
     }
-    if (logPin === "4872") {
-      setLogsAuthorized(true);
-      setLogPinPrompt(false);
-      setLogPin("");
-      setViewMode("logs");
-      setLogPage(1);
-    } else {
-      setPopupMessage("Incorrect PIN for logs.");
+    /* This is for PIN Verification for logs. The pin is in env.production on the server side and then will go through the index.js file to verify PIN and return success or failure. The default PIN is 1234 but should be changed in production for security. */
+    try {
+      const response = await fetchJSON("/verify-log-pin", {
+        method: "POST",
+        body: JSON.stringify({ pin: logPin }),
+      });
+      if (response.success) {
+        setLogsAuthorized(true);
+        setLogPinPrompt(false);
+        setLogPin("");
+        setViewMode("logs");
+        setLogPage(1);
+      } else {
+        setPopupMessage("Incorrect PIN for logs.");
+        setLogPin("");
+      }
+    } catch (error) {
+      setPopupMessage("Failed to verify log PIN.");
       setLogPin("");
     }
   };
@@ -686,20 +696,26 @@ function App() {
                       </button>
                       {showPinPrompt && !isAuthorized && (
                         <form
-                          onSubmit={(e) => {
+                          /* This is for PIN Verification for logs. The pin is in env.production on the server side and then will go through the index.js file to verify PIN and return success or failure. The default PIN is 1234 but should be changed in production for security. */
+                          onSubmit={async (e) => {
                             e.preventDefault();
 
-                            if (!/^\d+$/.test(pin)) {
-                              setPopupMessage("PIN must be numeric.");
-                              setPin("");
-                              return;
-                            }
-                            if (pin === "9063") {
-                              setIsAuthorized(true);
-                              setPin("");
-                              setShowPinPrompt(false);
-                            } else {
-                              setPopupMessage("Incorrect PIN.");
+                            try {
+                              const response = await fetchJSON(
+                                "/verify-admin-pin",
+                                {
+                                  method: "POST",
+                                  body: JSON.stringify({ pin }),
+                                },
+                              );
+
+                              if (response.success) {
+                                setIsAuthorized(true);
+                                setPin("");
+                                setShowPinPrompt(false);
+                              }
+                            } catch (error) {
+                              setPopupMessage("Failed to verify PIN.");
                               setPin("");
                             }
                           }}
@@ -721,7 +737,6 @@ function App() {
                           </button>
                         </form>
                       )}
-
                       {/* Activity logs access */}
                       <button
                         onClick={() => setLogPinPrompt((prev) => !prev)}
@@ -758,8 +773,8 @@ function App() {
                         onClick={() => {
                           setIsAuthorized(false);
                           setEditingId(null);
-                          setAddImageFile(null); // ⭐ NEW
-                          setAddImagePreview(""); // ⭐ NEW
+                          setAddImageFile(null);
+                          setAddImagePreview("");
                         }}
                         className="mb-4 bg-gray-300 hover:bg-gray-400 text-gray-800 px-5 py-3 rounded text-lg"
                       >

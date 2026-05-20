@@ -21,6 +21,7 @@ yarn-error.log*
 
 # Environment
 .env
+env.production
 
 # Editor/OS junk
 .DS_Store
