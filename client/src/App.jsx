@@ -349,7 +349,7 @@ function App() {
       location: part.location,
       image_url: part.image_url || "",
     });
-    setEditImageFile(null); // ⭐ NEW
+    setEditImageFile(null);
     setEditImagePreview(part.image_url || "");
   };
 
@@ -404,6 +404,7 @@ function App() {
         image_url,
       };
 
+      // PUT updated part data to server
       const updated = await fetchJSON(`/parts/${id}`, {
         method: "PUT",
         body: JSON.stringify(payload),
@@ -417,6 +418,7 @@ function App() {
       setEditingId(null);
       setEditImageFile(null);
       setEditImagePreview("");
+      //Return error if edit fails
     } catch (error) {
       console.error("Error updating part:", error);
       setPopupMessage("Failed to update part.");
@@ -451,7 +453,7 @@ function App() {
     e.preventDefault();
 
     if (!/^\d+$/.test(logPin)) {
-      setPopupMessage("PIN must be numeric.");
+      setPopupMessage("PIN must be numeric."); //only accept numeric PINs
       setLogPin("");
       return;
     }
